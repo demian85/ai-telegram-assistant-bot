@@ -222,10 +222,7 @@ export class ChatSubscriptionStore {
     }
   }
 
-  async getTopics(
-    chatId: string,
-    globalTopics: string[]
-  ): Promise<string[]> {
+  async getTopics(chatId: string, globalTopics: string[]): Promise<string[]> {
     const subscription = await this.getSubscription(chatId)
     return subscription?.topics ?? globalTopics
   }

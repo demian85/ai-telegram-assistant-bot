@@ -64,16 +64,17 @@ export function buildLiveUserContent(
   return content
 }
 
-export function extractTextContent(content: MessageContent): string {
+export function extractTextContent(content: unknown): string {
   if (typeof content === 'string') {
     return content
   }
 
   if (!Array.isArray(content)) {
-    return JSON.stringify(content)
+    return JSON.stringify(content) ?? ''
   }
 
-  const textParts = content
+  const parts: readonly unknown[] = content
+  const textParts = parts
     .flatMap((part): string[] => {
       if (typeof part === 'string') {
         return [part]

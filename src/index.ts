@@ -5,7 +5,12 @@ import logger from '@lib/logger.js'
 import { loadAppConfig } from '@lib/config/load-config.js'
 import type { AppConfig } from '@lib/config/types.js'
 import { getRedisClient, closeRedisClient } from '@lib/redis/index.js'
-import { NewsScheduler, NewsStore, NewsQueryService, RelevanceDetector } from '@lib/news/index.js'
+import {
+  NewsScheduler,
+  NewsStore,
+  NewsQueryService,
+  RelevanceDetector,
+} from '@lib/news/index.js'
 import { createAgentTools } from '@lib/agent/tools.js'
 import {
   createLlmRoleModels,

@@ -441,11 +441,7 @@ export class NewsScheduler {
           score = result.score
           isRelevant = result.isRelevant
 
-          await this.cacheRelevanceScore(
-            subscription.chatId,
-            item.id,
-            score
-          )
+          await this.cacheRelevanceScore(subscription.chatId, item.id, score)
 
           logger.info(
             {

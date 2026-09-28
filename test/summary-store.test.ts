@@ -16,8 +16,6 @@ describe('SummaryStore', () => {
     }
   ): MemorySummary {
     return {
-      level: overrides.level,
-      chatId: overrides.chatId,
       startTime: 1000,
       endTime: 2000,
       summary: 'Test summary content',
