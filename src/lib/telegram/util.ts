@@ -74,6 +74,19 @@ export function createMarkdownLink(text: string, url: string): string {
   return `[${escapeMarkdown(text)}](${safeUrl})`
 }
 
+export function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+export function createHtmlLink(text: string, url: string): string {
+  if (!url) return escapeHtml(text)
+  return `<a href="${escapeHtml(url)}">${escapeHtml(text)}</a>`
+}
+
 export interface NewsArticle {
   title: string
   url: string
@@ -84,7 +97,7 @@ export interface NewsArticle {
 }
 
 export interface FormatNewsOptions {
-  mode: 'markdown' | 'plain'
+  mode: 'markdown' | 'html' | 'plain'
   includeDescription?: boolean
   descriptionMaxLength?: number
   includeRelevance?: boolean
@@ -106,17 +119,24 @@ export function formatNewsArticle(
   } = options
 
   const isMarkdown = mode === 'markdown'
+  const isHtml = mode === 'html'
+  const isFormatted = isMarkdown || isHtml
+  const escapeFormatted = isHtml ? escapeHtml : escapeMarkdown
   const lines: string[] = []
 
-  if (isMarkdown) {
-    lines.push(`*${escapeMarkdown(article.title)}*`)
+  if (isFormatted) {
+    lines.push(
+      isHtml
+        ? `<b>${escapeHtml(article.title)}</b>`
+        : `*${escapeMarkdown(article.title)}*`
+    )
   } else {
     lines.push(article.title)
   }
 
   const parts: string[] = []
-  if (isMarkdown) {
-    parts.push(`📰 Source: ${escapeMarkdown(article.source)}`)
+  if (isFormatted) {
+    parts.push(`📰 Source: ${escapeFormatted(article.source)}`)
     if (includeDate) {
       const publishedStr = article.publishedAt.toLocaleDateString('en-US', {
         month: 'short',
@@ -144,17 +164,20 @@ export function formatNewsArticle(
     if (descriptionMaxLength > 0 && desc.length > descriptionMaxLength) {
       desc = desc.slice(0, descriptionMaxLength) + '...'
     }
-    lines.push(isMarkdown ? escapeMarkdown(desc) : desc)
+    lines.push(isFormatted ? escapeFormatted(desc) : desc)
   }
 
-  if (isMarkdown) {
-    lines.push(`🔗 ${createMarkdownLink('Read full article', article.url)}`)
+  if (isFormatted) {
+    const link = isHtml
+      ? createHtmlLink('Read full article', article.url)
+      : createMarkdownLink('Read full article', article.url)
+    lines.push(`🔗 ${link}`)
   } else {
     lines.push(`URL: ${article.url}`)
   }
 
   if (includeRelevance && article.relevanceScore !== undefined) {
-    if (isMarkdown) {
+    if (isFormatted) {
       lines.push(`⭐ Relevance: ${article.relevanceScore}/100`)
     } else {
       lines.push(`Relevance Score: ${article.relevanceScore}/100`)

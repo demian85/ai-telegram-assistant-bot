@@ -262,3 +262,31 @@ test('group subscription commands are rejected for non-admin users', async () =>
   )
   expect(await subscriptions.getSubscription('-100')).toBe(null)
 })
+
+test('scheduled news with Markdown-looking RSS fields sends parseable literal text', async () => {
+  const { bot, telegraf } = createBotHarness()
+
+  await bot.sendNewsArticle('165286700', {
+    articleId: 'https://huggingface.co/blog/nvidia/nemotron-diarization',
+    title:
+      '**Know Who Spoke When: Build Real-Time, Multi-Speaker AI with NVIDIA Nemotron 3 Diarization**',
+    url: 'https://huggingface.co/blog/nvidia/nemotron-diarization?src=a&mode=1',
+    description: 'NVIDIA & <partners> explain speaker "diarization"',
+    relevanceScore: 75,
+  })
+
+  expect(telegraf.sentMessages).toEqual([
+    {
+      chatId: '165286700',
+      text:
+        '<b>**Know Who Spoke When: Build Real-Time, Multi-Speaker AI with NVIDIA Nemotron 3 Diarization**</b>\n' +
+        '<a href="https://huggingface.co/blog/nvidia/nemotron-diarization?src=a&amp;mode=1">Read more</a>\n' +
+        'NVIDIA &amp; &lt;partners&gt; explain speaker &quot;diarization&quot;\n\n' +
+        'Relevance score: 75',
+      extra: {
+        parse_mode: 'HTML',
+        link_preview_options: { is_disabled: false },
+      },
+    },
+  ])
+})

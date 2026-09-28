@@ -272,6 +272,25 @@ describe('formatNewsArticle', () => {
 
     expect(result).toContain('*Title *with* markdown*')
   })
+
+  test('formats RSS markup as literal text in Telegram HTML', () => {
+    const article = {
+      ...baseArticle,
+      title: '**News & <analysis>**',
+      source: 'R&D <Lab>',
+      description: 'Quotes "matter" & tags <too>',
+      url: 'https://example.com/article?source=a&edition="b"',
+    }
+
+    const result = formatNewsArticle(article, { mode: 'html' })
+
+    expect(result).toContain('<b>**News &amp; &lt;analysis&gt;**</b>')
+    expect(result).toContain('📰 Source: R&amp;D &lt;Lab&gt;')
+    expect(result).toContain('Quotes &quot;matter&quot; &amp; tags &lt;too&gt;')
+    expect(result).toContain(
+      '<a href="https://example.com/article?source=a&amp;edition=&quot;b&quot;">Read full article</a>'
+    )
+  })
 })
 
 describe('formatNewsArticles', () => {

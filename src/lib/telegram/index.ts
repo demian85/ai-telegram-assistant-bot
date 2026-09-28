@@ -28,8 +28,8 @@ import {
 import { Config } from '@lib/types.js'
 import {
   formatTelegramMarkdownReply,
-  escapeMarkdown,
-  createMarkdownLink,
+  escapeHtml,
+  createHtmlLink,
   formatNewsArticles,
   type NewsArticle,
 } from './util.js'
@@ -310,13 +310,13 @@ export class Bot {
     article: BotNewsArticle
   ): Promise<void> {
     const lines = [
-      `*${escapeMarkdown(article.title)}*`,
-      `${createMarkdownLink('Read more', article.url)}`,
+      `<b>${escapeHtml(article.title)}</b>`,
+      createHtmlLink('Read more', article.url),
       `\nRelevance score: ${article.relevanceScore}`,
     ]
 
     if (article.description && article.description.split(/\s+/).length > 1) {
-      lines.splice(2, 0, escapeMarkdown(article.description))
+      lines.splice(2, 0, escapeHtml(article.description))
     }
 
     const logContext = {
@@ -332,7 +332,7 @@ export class Bot {
 
     try {
       await this.bot.telegram.sendMessage(chatId, lines.join('\n'), {
-        parse_mode: 'Markdown',
+        parse_mode: 'HTML',
         link_preview_options: {
           is_disabled: false,
         },
@@ -420,7 +420,7 @@ export class Bot {
           await ctx.sendChatAction('typing')
           const raw = await this.newsQueryService.getRecentNewsRaw(10)
           const lines = [
-            `*Debug News Info*`,
+            `<b>Debug News Info</b>`,
             ``,
             `Total articles in store: ${raw.length}`,
             ``,
@@ -428,9 +428,9 @@ export class Bot {
           if (raw.length > 0) {
             lines.push(`Latest articles (no filter):`)
             raw.slice(0, 5).forEach((a, i) => {
-              lines.push(`${i + 1}. ${escapeMarkdown(a.title)}`)
+              lines.push(`${i + 1}. ${escapeHtml(a.title)}`)
               lines.push(
-                `   Score: ${a.relevanceScore ?? 'unscored'} | Source: ${escapeMarkdown(a.source)}`
+                `   Score: ${a.relevanceScore ?? 'unscored'} | Source: ${escapeHtml(a.source)}`
               )
             })
           } else {
@@ -438,7 +438,7 @@ export class Bot {
               `No articles found. The news scheduler may not be running or feeds are empty.`
             )
           }
-          await ctx.reply(lines.join('\n'), { parse_mode: 'Markdown' })
+          await ctx.reply(lines.join('\n'), { parse_mode: 'HTML' })
         } catch (error) {
           logger.error({ error }, 'Debug news command failed')
           await ctx.reply('Error: ' + String(error))
@@ -490,9 +490,9 @@ export class Bot {
             return
           }
 
-          const header = `*📰 Recent AI News (${articles.length} article${articles.length === 1 ? '' : 's'})*\n`
+          const header = `<b>📰 Recent AI News (${articles.length} article${articles.length === 1 ? '' : 's'})</b>\n`
           const formatted = formatNewsArticles(articles as NewsArticle[], {
-            mode: 'markdown',
+            mode: 'html',
             includeDescription: true,
             descriptionMaxLength: 200,
             includeRelevance: true,
@@ -501,7 +501,7 @@ export class Bot {
           })
 
           await ctx.reply(header + formatted, {
-            parse_mode: 'Markdown',
+            parse_mode: 'HTML',
             link_preview_options: { is_disabled: true },
           })
         } catch (error) {

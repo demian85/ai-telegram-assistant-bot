@@ -217,11 +217,23 @@ type Middleware = (
 type Handler = (ctx: TestContext) => Promise<unknown> | unknown
 
 export class FakeTelegraf {
+  readonly sentMessages: Array<{
+    chatId: string
+    text: string
+    extra?: Record<string, unknown>
+  }> = []
+
   readonly telegram = {
     setMyCommands: async () => undefined,
     getFileLink: async (fileId: string) =>
       new URL(`https://files.test/${fileId}`),
-    sendMessage: async () => undefined,
+    sendMessage: async (
+      chatId: string,
+      text: string,
+      extra?: Record<string, unknown>
+    ) => {
+      this.sentMessages.push({ chatId, text, extra })
+    },
     getChatMember: async () => ({ status: 'member' }),
   }
 

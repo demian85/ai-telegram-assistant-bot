@@ -33,6 +33,7 @@
 - Keep that URL transient: agent content helpers persist an image marker and caption as a text shadow.
 - Unmentioned group photos persist without a reply. For an invoked photo with unsupported vision, persist its shadow and send the limitation message.
 - Use `formatTelegramMarkdownReply` with Telegram `parse_mode: 'Markdown'` for model responses.
+- Treat RSS titles, descriptions, sources, and URLs as literal data; scheduled articles, `/news`, and `/debugnews` use HTML formatting with escaped fields.
 - Reuse `formatNewsArticle` / `formatNewsArticles` for news formatting and their plain-text mode for summary input.
 
 ## Subscription commands
