@@ -1,4 +1,8 @@
-export type LlmRole = 'chat' | 'summarizer' | 'newsRelevance'
+export type LlmRole =
+  | 'chat'
+  | 'summarizer'
+  | 'newsRelevance'
+  | 'newsPreferences'
 
 export interface TelegramConfig {
   botUsername: string

@@ -8,6 +8,8 @@ import { ChatSubscriptionStore } from './chat-subscription-store.js'
 import { NewsDeliveryStore } from './news-delivery-store.js'
 import type { ChatOpenAI } from '@langchain/openai'
 import logger from '@lib/logger.js'
+import { ChatNewsFilter } from './chat-news-filter.js'
+import { NewsPreferenceStore } from './preferences.js'
 
 const startupJobRegistrations = [
   { name: 'poll-news', jobId: 'poll-news-startup' },
@@ -48,6 +50,7 @@ export interface NewsSchedulerConfig {
 }
 
 export interface NewsSchedulerDependencies {
+  filter?: ChatNewsFilter
   feedReader?: FeedReader
   newsStore?: NewsStore
   relevanceDetector?: RelevanceDetector
@@ -60,7 +63,7 @@ export interface NewsSchedulerDependencies {
 export class NewsScheduler {
   private readonly feedReader: FeedReader
   private readonly newsStore: NewsStore
-  private readonly relevanceDetector: RelevanceDetector
+  private readonly filter: ChatNewsFilter
   private readonly chatSubscriptionStore: ChatSubscriptionStore
   private readonly newsDeliveryStore: NewsDeliveryStore
   private readonly config: NewsConfig
@@ -74,12 +77,19 @@ export class NewsScheduler {
   ) {
     this.feedReader = dependencies.feedReader ?? new FeedReader()
     this.newsStore = dependencies.newsStore ?? new NewsStore(config.redis)
-    this.relevanceDetector =
+    const relevanceDetector =
       dependencies.relevanceDetector ??
       new RelevanceDetector(config.model, {
         topics: config.newsConfig.topics,
         relevanceThreshold: config.newsConfig.relevanceThreshold,
       })
+    this.filter =
+      dependencies.filter ??
+      new ChatNewsFilter(
+        config.redis,
+        new NewsPreferenceStore(config.redis, config.newsConfig.topics),
+        relevanceDetector
+      )
     this.chatSubscriptionStore =
       dependencies.chatSubscriptionStore ??
       new ChatSubscriptionStore(config.redis)
@@ -382,10 +392,7 @@ export class NewsScheduler {
         continue
       }
 
-      const chatTopics = await this.chatSubscriptionStore.getTopics(
-        subscription.chatId,
-        this.config.topics
-      )
+      const filter = await this.filter.preferences.resolve(subscription.chatId)
 
       const candidateItems = await this.newsStore.getItemsSince(
         subscription.deliverAfter
@@ -412,54 +419,34 @@ export class NewsScheduler {
           continue
         }
 
-        const cachedScore = await this.getCachedRelevanceScore(
-          subscription.chatId,
-          item.id
+        const result = await this.filter.evaluate(
+          { chatId: subscription.chatId, filter },
+          item
         )
-
-        let score: number
-        let isRelevant: boolean
-
-        if (cachedScore !== null) {
-          score = cachedScore
-          isRelevant = score >= this.config.relevanceThreshold
-          logger.debug(
-            {
-              event: 'news.delivery.chat.cached_score',
-              chatId: subscription.chatId,
-              itemId: item.id,
-              score,
-              isRelevant,
-            },
-            'Using cached relevance score'
-          )
-        } else {
-          const result = await this.relevanceDetector.detectRelevance(
-            item,
-            chatTopics
-          )
-          score = result.score
-          isRelevant = result.isRelevant
-
-          await this.cacheRelevanceScore(subscription.chatId, item.id, score)
-
-          logger.info(
-            {
-              event: 'news.delivery.chat.score',
-              chatId: subscription.chatId,
-              itemId: item.id,
-              itemTitle: item.title.slice(0, 50),
-              score,
-              isRelevant,
-              threshold: this.config.relevanceThreshold,
-            },
-            `Scored article for chat ${subscription.chatId}: ${score}`
-          )
-        }
+        if (result === null) continue
+        const { score, isRelevant } = result
+        logger.info(
+          {
+            event: 'news.delivery.chat.score',
+            chatId: subscription.chatId,
+            itemId: item.id,
+            score,
+            isRelevant,
+            excluded: result.excluded,
+            filterRevision: filter.revision,
+            threshold: this.config.relevanceThreshold,
+          },
+          'Evaluated article for delivery'
+        )
 
         if (!isRelevant) {
           continue
         }
+
+        const currentFilter = await this.filter.preferences.resolve(
+          subscription.chatId
+        )
+        if (currentFilter.revision !== filter.revision) break
 
         await this.newsDeliveryStore.markDelivered(
           subscription.chatId,
@@ -599,28 +586,5 @@ export class NewsScheduler {
     return cooldownEndsAt.getTime() > subscription.deliverAfter.getTime()
       ? cooldownEndsAt
       : subscription.deliverAfter
-  }
-
-  private getRelevanceCacheKey(chatId: string, itemId: string): string {
-    return `news:chat-relevance:${chatId}:${itemId}`
-  }
-
-  private async getCachedRelevanceScore(
-    chatId: string,
-    itemId: string
-  ): Promise<number | null> {
-    const key = this.getRelevanceCacheKey(chatId, itemId)
-    const data = await this.redis.get(key)
-    if (!data) return null
-    return Number(data)
-  }
-
-  private async cacheRelevanceScore(
-    chatId: string,
-    itemId: string,
-    score: number
-  ): Promise<void> {
-    const key = this.getRelevanceCacheKey(chatId, itemId)
-    await this.redis.setex(key, 14 * 24 * 60 * 60, String(score))
   }
 }

@@ -8,6 +8,7 @@
     ".": "./build/index.js"
   },
   "scripts": {
+    "news:evaluate": "node --import tsx scripts/evaluate-news-filter.ts",
     "test": "vitest run",
     "build": "tsc && resolve-tspaths",
     "start": "node build/index.js | pino-pretty",

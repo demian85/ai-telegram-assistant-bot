@@ -11,6 +11,6 @@
     "resolveJsonModule": true,
     "ignoreDeprecations": "6.0"
   },
-  "include": ["src/**/*", "test/**/*"],
+  "include": ["src/**/*", "test/**/*", "scripts/**/*.ts"],
   "exclude": ["node_modules", "build"]
 }

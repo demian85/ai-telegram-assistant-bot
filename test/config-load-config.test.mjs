@@ -131,6 +131,12 @@ test('loadAppConfig deep-merges objects while replacing arrays and scalars', () 
         baseUrl: 'https://override.test/api',
         defaultModel: 'baseline-model',
         roles: {
+          newsPreferences: {
+            model: 'news-default',
+            supportsVision: false,
+            supportsWebSearch: false,
+            systemPrompt: expect.any(String),
+          },
           chat: {
             model: 'chat-default',
             supportsVision: false,

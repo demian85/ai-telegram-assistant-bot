@@ -25,6 +25,11 @@ export function createLlmRoleModels(config: AppConfig): LlmRoleModels {
       apiKey,
       config.llm.baseUrl
     ),
+    newsPreferences: createLlmModel(
+      config.llm.roles.newsPreferences,
+      apiKey,
+      config.llm.baseUrl
+    ),
   }
 }
 

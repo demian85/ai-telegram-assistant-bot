@@ -38,10 +38,11 @@
 
 ## Subscription commands
 
-- `/subscribe`, `/unsubscribe`, `/interval`, and `/topics` call the shared access check before reading or changing settings.
+- `/subscribe`, `/unsubscribe`, `/interval`, `/topics`, and `/newsfilter` call the shared access check before reading or changing settings.
 - Private chats pass that check; groups require `administrator` or `creator` status from Telegram.
 - Missing identity or failed membership lookup denies access with an explanatory reply.
-- `/news` and `/summary` obtain the chat's topics, falling back to configured defaults.
+- `/newsfilter` delegates to `news-filter-command.ts`: view, generate/replace, or reset. Generation is serialized per chat in this single bot process; overlapping requests receive a retry message. Generated instructions are validated before persistence.
+- `/news` and `/summary` pass raw chat IDs to the shared filtering query service.
 
 ## Verification
 

@@ -12,6 +12,11 @@ import {
   RelevanceDetector,
 } from '@lib/news/index.js'
 import { createAgentTools } from '@lib/agent/tools.js'
+import { ChatNewsFilter } from '@lib/news/chat-news-filter.js'
+import {
+  NewsPreferenceStore,
+  NewsPreferenceGenerator,
+} from '@lib/news/preferences.js'
 import {
   createLlmRoleModels,
   llmSupportsVision,
@@ -28,12 +33,18 @@ async function main() {
   const relevanceDetector = new RelevanceDetector(models.newsRelevance, {
     topics: config.news.topics,
     relevanceThreshold: config.news.relevanceThreshold,
+    systemPrompt: config.llm.roles.newsRelevance.systemPrompt,
   })
+  const newsPreferences = new NewsPreferenceStore(redis, config.news.topics)
+  const filter = new ChatNewsFilter(redis, newsPreferences, relevanceDetector)
+  const newsPreferenceGenerator = new NewsPreferenceGenerator(
+    models.newsPreferences,
+    config.llm.roles.newsPreferences
+  )
   const newsQueryService = new NewsQueryService({
     redis,
-    relevanceThreshold: config.news.relevanceThreshold,
     feeds: config.news.feeds,
-    relevanceDetector,
+    filter,
   })
 
   const supportsWebSearch = llmSupportsWebSearch('chat', config)
@@ -52,6 +63,8 @@ async function main() {
       redis,
       newsQueryService,
       tools,
+      newsPreferences,
+      newsPreferenceGenerator,
     }
   )
 
@@ -71,6 +84,7 @@ async function main() {
     },
     {
       newsStore,
+      filter,
     }
   )
 

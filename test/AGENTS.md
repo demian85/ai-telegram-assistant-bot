@@ -2,17 +2,19 @@
 
 ## Test map
 
-| Behavior                                               | File                                                    |
-| ------------------------------------------------------ | ------------------------------------------------------- |
-| Message routing, vision fallback, group admin commands | `telegram-routing.test.ts`                              |
-| Normalized conversation scope                          | `telegram-scope.test.ts`                                |
-| Telegram reply/news formatting                         | `telegram-util.test.ts`                                 |
-| Live multimodal input and persisted text shadows       | `agent-content.test.ts`, `agent-memory.test.ts`         |
-| Conversation persistence                               | `conversation-store.test.ts`                            |
-| Summary levels, clearing, message counts               | `summary-store.test.ts`                                 |
-| Subscription cadence, delivery isolation, rollback     | `news-subscriptions.test.ts`                            |
-| Config validation and merge behavior                   | `config-loading.test.ts`, `config-load-config.test.mjs` |
-| Shared doubles and update builders                     | `test-helpers.ts`                                       |
+| Behavior                                                               | File                                                    |
+| ---------------------------------------------------------------------- | ------------------------------------------------------- |
+| Message routing, vision fallback, group admin commands                 | `telegram-routing.test.ts`                              |
+| Normalized conversation scope                                          | `telegram-scope.test.ts`                                |
+| Telegram reply/news formatting                                         | `telegram-util.test.ts`                                 |
+| Live multimodal input and persisted text shadows                       | `agent-content.test.ts`, `agent-memory.test.ts`         |
+| Conversation persistence                                               | `conversation-store.test.ts`                            |
+| Summary levels, clearing, message counts                               | `summary-store.test.ts`                                 |
+| Subscription cadence, delivery isolation, rollback                     | `news-subscriptions.test.ts`                            |
+| Config validation and merge behavior                                   | `config-loading.test.ts`, `config-load-config.test.mjs` |
+| Shared doubles and update builders                                     | `test-helpers.ts`                                       |
+| Preference persistence, model schema, exclusion gates, cache revisions | `news-filter.test.ts`, `news-filter-helpers.ts`         |
+| Shared scheduling/query/tool filtering and stale results               | `news-filter-paths.test.ts`                             |
 
 ## Harness conventions
 
@@ -29,7 +31,8 @@
 - Queue and worker doubles do not schedule or execute jobs.
 - `FakeTelegraf.on` assigns text, photo, then inline-query handlers by registration order; it ignores filters.
 - If handler registration changes, review the fake alongside the routing tests.
-- Passing these tests does not verify Telegram transport, live Redis behavior, or provider responses.
+- `createTextUpdate` supplies a leading command entity automatically unless explicitly overridden.
+- Passing these tests does not verify Telegram transport, live Redis behavior, or provider responses. `npm run news:evaluate` separately exercises the configured provider against eight labeled synthetic cases.
 
 ## Config tests
 

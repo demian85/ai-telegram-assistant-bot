@@ -455,7 +455,17 @@ export function createTextUpdate(input: {
         username: input.username,
       },
       text: input.text,
-      entities: input.entities,
+      entities:
+        input.entities ??
+        (input.text.startsWith('/')
+          ? [
+              {
+                type: 'bot_command',
+                offset: 0,
+                length: input.text.split(/\s/, 1)[0].length,
+              },
+            ]
+          : undefined),
     },
   }
 }

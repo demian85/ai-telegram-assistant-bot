@@ -115,9 +115,12 @@ export class AgentService {
         'Agent invoke starting'
       )
 
-      const result = await this.agent.invoke({
-        messages,
-      })
+      const result = await this.agent.invoke(
+        { messages },
+        {
+          configurable: { newsChatId: chatId.replace(/^(private|group):/, '') },
+        }
+      )
 
       const lastMessage = result.messages[result.messages.length - 1]
       const toolCalls = (lastMessage as any).tool_calls

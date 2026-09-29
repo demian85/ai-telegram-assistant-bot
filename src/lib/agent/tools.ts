@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { StructuredTool } from '@langchain/core/tools'
 import type { NewsQueryService } from '@lib/news/index.js'
 import { formatNewsArticles, type NewsArticle } from '@lib/telegram/util.js'
+import logger from '@lib/logger.js'
 
 function safeEvaluate(expression: string): number {
   const sanitized = expression.replace(/[^0-9+\-*/.()\s]/g, '')
@@ -59,6 +60,7 @@ I am an AI-powered Telegram bot. Here's what I can do:
 - /subscribe - Enable news delivery for this chat
 - /unsubscribe - Disable news delivery for this chat
 - /interval [seconds] - Show or set the news delivery interval
+- /newsfilter [description|reset] - Describe, view, or reset news preferences
 - /news [count] - Get recent news (1-10 articles)
 
 **Tools:**
@@ -181,9 +183,13 @@ export function createRecentNewsTool(
   newsQueryService: NewsQueryService
 ): StructuredTool {
   return tool(
-    async ({ count }) => {
+    async ({ count }, config) => {
       try {
-        const articles = await newsQueryService.fetchAndGetRecentNews(count)
+        const chatId = z.string().min(1).parse(config.configurable?.newsChatId)
+        const articles = await newsQueryService.fetchAndGetRecentNewsForChat(
+          count,
+          chatId
+        )
 
         if (articles.length === 0) {
           return "I don't have any relevant news articles available right now. News is collected periodically from various sources. Try again in a few minutes, or subscribe to get news delivered automatically with /subscribe."
@@ -201,7 +207,13 @@ export function createRecentNewsTool(
 
         return header + formatted
       } catch (error) {
-        console.error('Error retrieving recent news:', error)
+        logger.error(
+          {
+            event: 'news.tool.error',
+            err: error instanceof Error ? error : new Error(String(error)),
+          },
+          'Failed to retrieve news for this chat'
+        )
         return "I couldn't retrieve recent news right now. Please try again later or use /news command."
       }
     },
