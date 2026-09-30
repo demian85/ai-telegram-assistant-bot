@@ -69,7 +69,8 @@ npm run build
 - Private text invokes the agent. Group messages enter shared memory, while ordinary replies require an explicit bot mention. Telegram privacy mode controls which updates Telegram sends; there is no app-level toggle.
 - The four configured roles are `chat`, `summarizer`, `newsRelevance`, and `newsPreferences`. Provider settings are shared; role models differ. Three-role configs remain compatible.
 - Bootstrap uses the chat, relevance, and preference role system prompts. The summarizer still constructs its prompt internally.
-- `/newsfilter` generates and persists per-chat instructions. Scheduled news, `/news`, `/summary`, and the feed tool share `ChatNewsFilter`; explicit exclusions override scores.
+- `/topics` is removed; legacy config/subscription topics migrate to natural-language filters. `news.defaultFilter` supplies defaults.
+- `/newsfilter` validates structured interests, exclusions, and title rules with source quotes. Original descriptions remain authoritative in every relevance call. Scheduled news, `/news`, `/summary`, and the feed tool share `ChatNewsFilter`; explicit exclusions override scores.
 - News polling and delivery are separate jobs. A chat receives scheduled articles only while its subscription is enabled.
 - Only one live long-polling instance may use a Telegram bot token; a second produces Telegram 409 Conflict.
 
@@ -78,4 +79,4 @@ npm run build
 - Do not edit `build/` or describe this runtime as Venice-only.
 - Do not turn group message persistence into group auto-replies without changing the mention rule deliberately.
 - Never accept a chat ID from model tool arguments: the feed tool uses trusted invocation configuration. Provider-native web search is outside the feed filter.
-- Use `npm run news:evaluate` for an opt-in live provider quality check; it makes nine model requests without Telegram or Redis writes.
+- Use `npm run news:evaluate` for an opt-in live provider quality check; it makes ten model calls without Telegram or Redis writes.

@@ -1,8 +1,4 @@
-export {
-  ChatSubscriptionStore,
-  normalizeTopics,
-  formatTopics,
-} from './chat-subscription-store.js'
+export { ChatSubscriptionStore } from './chat-subscription-store.js'
 export { FeedReader, type FeedEntry } from './feed-reader.js'
 export { NewsStore } from './news-store.js'
 export { NewsDeliveryStore } from './news-delivery-store.js'

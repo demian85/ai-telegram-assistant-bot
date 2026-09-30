@@ -49,12 +49,11 @@ The bot registers these Telegram commands:
 /subscribe             Enable relevant news delivery for this chat
 /unsubscribe           Disable relevant news delivery for this chat
 /interval [seconds]    Show or set the news cadence
-/topics [a, b, c]      Show or set news topics for this chat
 /newsfilter [text]     Describe preferences, or show the active filter
 /newsfilter reset      Restore the configured default news filter
 ```
 
-In private chats, subscription commands are self-service. In group chats, `/subscribe`, `/unsubscribe`, `/interval`, `/topics`, and `/newsfilter` require admin access, including viewing preferences.
+In private chats, subscription commands are self-service. In group chats, `/subscribe`, `/unsubscribe`, `/interval`, and `/newsfilter` require admin access, including viewing preferences.
 
 ### Configure your news filter
 
@@ -64,15 +63,15 @@ Send your interests and exclusions in your own words:
 /newsfilter I prefer articles about coding agents, coding tools, agent harnesses and programming languages, but I'm not interested in Python or new releases of LangChain tools.
 ```
 
-The `newsPreferences` model turns that description into a precise instruction. The bot saves it and replies with the generated instruction so you can check its interpretation. Descriptions and generated instructions are limited to 3000 characters each.
+The `newsPreferences` model extracts structured interests, exclusions, and title requirements. Each rule must cite exact text from your description. The app validates those fields and builds the readable instruction; a heading-only, empty, or structurally incomplete response is rejected. Descriptions and compiled instructions are limited to 3000 characters each.
 
 - `/newsfilter` shows your original description and active instruction.
 - `/newsfilter <new description>` replaces the previous preferences completely. Include everything you want to retain.
-- `/newsfilter reset` restores the current `news.topics` defaults, even if you previously set custom `/topics`.
+- `/newsfilter reset` restores the current `news.defaultFilter`, including for chats migrated from the removed `/topics` command.
 - Failed generation leaves the previous saved filter intact. A second update while generation is running is rejected; retry after it finishes.
 - Changes do not subscribe or unsubscribe the chat, change its interval, or resend already delivered articles.
 
-The instruction is reused until you change or reset it. The generator is not called for each article. Preferences are stored per chat in Redis without an application expiry; Redis persistence/backups are still needed to survive data loss. Group preferences are shared by that group.
+Your original description is always supplied to the relevance model and takes precedence over the compiled instruction. This preserves exclusions and title rules even if the generator omits a detail. The structured criteria and instruction are reused until you change or reset them. The generator is not called for each article. Preferences are stored per chat in Redis without an application expiry; Redis persistence/backups are still needed to survive data loss. Group preferences are shared by that group.
 
 Articles must substantively match at least one interest, avoid explicit exclusions, and meet the relevance score threshold. A high score cannot override an exclusion. By default, an exclusion concerns the article's main subject; an incidental mention does not disqualify it. Say explicitly if you want a stricter rule.
 
@@ -134,14 +133,14 @@ Important config areas:
 - `news.pollIntervalMinutes` - how often feeds are polled
 - `news.deliveryCheckIntervalSeconds` - how often subscriptions are checked for delivery
 - `news.relevanceThreshold` - minimum score to deliver an article to a chat (scored per-chat)
-- `news.topics` - default interests for new chats and `/newsfilter reset`
+- `news.defaultFilter` - natural-language selection instructions for new chats and `/newsfilter reset`
 - `llm.apiKeyEnvVar` - env var holding the provider API key
 - `llm.baseUrl` - OpenAI-compatible base URL
 - `llm.roles.newsPreferences` - model and system prompt that convert user descriptions into filtering instructions
 - `llm.roles.newsRelevance` - model and system prompt that evaluate articles using saved preferences
 - `llm.roles.chat` and `llm.roles.summarizer` - conversational and memory models
 
-Both news roles share `llm.baseUrl` and the API key but can use different model names. Set `llm.roles.newsPreferences.model` independently of `llm.roles.newsRelevance.model` in your full `config.json` (see `config.sample.json`). Choose models that support structured JSON output. The preference role's system prompt controls instruction generation; the relevance role's system prompt is combined with fixed selection rules and the saved chat instruction.
+Both news roles share `llm.baseUrl` and the API key but can use different model names. Set `llm.roles.newsPreferences.model` independently of `llm.roles.newsRelevance.model` in your full `config.json` (see `config.sample.json`). Choose models that support structured JSON output. The preference role's system prompt guides extraction under a fixed structured schema; the relevance role receives fixed selection rules, your original description, and the compiled instruction.
 
 Existing three-role configurations remain valid. If your override omits `newsPreferences`, it inherits the shipped default role. If both files omit it, the loader uses the relevance model with a dedicated preference-generation prompt. The loader still validates a nonempty override as a full config before merging: a file containing only the new role is not sufficient.
 
@@ -237,9 +236,11 @@ The bot continuously monitors configured RSS feeds and stores recent articles in
 
 Scheduled delivery, `/news`, `/summary`, and the built-in `get_recent_news` feed tool share the same filter and decision cache. The tool receives chat identity from the application, not from model arguments. Provider-native web search is separate and is not filtered by this feed pipeline.
 
-Chats without a saved `/newsfilter` setting retain legacy `/topics` preferences, falling back to `news.topics`. Once `/newsfilter` is set or reset, it takes precedence over `/topics`. No existing subscriptions need migration.
+`/topics` has been removed. On first filter access, a chat with old subscription topics and no filter gets a persistent filter record derived from those topics. Existing custom filters and explicit resets take precedence; subscription status, interval, and delivery history remain unchanged. Old `news.topics` arrays in JSON config are converted to `news.defaultFilter` before merging, so existing overrides keep their meaning; update those files to the new field when convenient. An explicit `defaultFilter` wins if both fields exist.
 
-Complete decisions are cached for 14 days, including the exclusion flag and reason. Cache keys include chat, article content, preference revision, model/provider, scoring prompt, and threshold. Preference changes take effect on subsequent evaluations; old score-only cache entries are ignored. Failed or malformed model responses do not deliver articles or create cached rejections. A preference change during scoring discards that request's results before delivery.
+Previously saved unstructured filters use their original description instead of trusting the generated instruction. This immediately protects chats with the old heading-only failure. Use `/newsfilter <description>` to replace one with validated structured criteria. Failed generation keeps the existing filter intact.
+
+Complete decisions are cached for 14 days, including the exclusion flag and reason. Cache keys include chat, article content, preference revision, original description, model/provider, scoring prompt, and threshold. Preference changes take effect on subsequent evaluations; old score-only cache entries are ignored. Failed or malformed model responses do not deliver articles or create cached rejections. A preference change during scoring discards that request's results before delivery.
 
 Filtering uses RSS title, description, and available content (bounded to 1000, 3000, and 8000 characters respectively), not a fetched full webpage. On-demand requests inspect up to 50 recent candidates and return up to 10 matches; zero matches is a valid result.
 
@@ -251,9 +252,9 @@ Run offline regression tests with `npm test`. To check actual provider decisions
 npm run news:evaluate
 ```
 
-This uses your configured provider credentials, generates one instruction from the example above, and scores eight labeled synthetic articles. It runs nine model calls (SDK retries may add requests), prints each decision and a pass count, and exits unsuccessfully for mismatches. It stops immediately on a provider failure. Generation and scoring each have a 60-second timeout. It does not start Telegram, connect to Redis, change preferences, or send messages. The cases include direct matches, Python and LangChain exclusions, incidental mentions, generic AI news, insufficient detail, and instructions embedded in article text. A successful run is a small quality check, not proof of accuracy across real feeds; add representative false positives when tuning the models.
+This uses your configured provider credentials, generates one instruction from the example above, and scores nine labeled articles. It runs ten model calls (SDK retries may add requests), prints each decision and a pass count, and exits unsuccessfully for mismatches. It stops immediately on a provider failure. Generation and scoring each have a 60-second timeout. It does not start Telegram, connect to Redis, change preferences, or send messages. The cases include the reported Siri settlement false positive, direct matches, Python and LangChain exclusions, incidental mentions, generic AI news, insufficient detail, and instructions embedded in article text. A successful run is a small quality check, not proof of accuracy across real feeds; add representative false positives when tuning the models.
 
-Implementation verification on 2026-09-29: the offline regression suite passed, and live instruction generation succeeded with `qwen3-5-35b-a3b`. The first live scoring call to `qwen3-5-9b` timed out, so live classification accuracy remains unverified. Rerun the evaluation before relying on a chosen model configuration in production.
+A passing offline suite proves the application gates and data flow, not model accuracy. Run the provider evaluation after changing models or prompts.
 
 ## Project structure
 

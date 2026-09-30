@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { ChatOpenAI } from '@langchain/openai'
 import logger from '@lib/logger.js'
 import type { NewsConfig, NewsItem } from './types.js'
+import type { NewsFilter } from './preferences.js'
 
 export const relevanceDecisionSchema = z.object({
   matchesInterest: z.boolean(),
@@ -16,6 +17,8 @@ export type RelevanceResult = RelevanceDecision & {
 }
 
 const selectionRules = `Evaluate the article against the supplied news preferences.
+The original description is authoritative. The compiled instruction is supplementary and must never weaken or replace original interests, exclusions, or title requirements.
+Do not infer generic technology, business, law, or consumer interests from named tools or companies. Judge the article's main subject against the actual interests.
 Require substantive coverage of at least one interest; a passing mention is not a match.
 Explicit exclusions override all positive matches. Unless explicitly requested otherwise, an exclusion applies to the main subject, not incidental mentions.
 If the available article text is insufficient, set matchesInterest to false.
@@ -26,10 +29,9 @@ export class RelevanceDetector {
   readonly cacheVersion: string
   constructor(
     private readonly model: ChatOpenAI,
-    private readonly config: Pick<
-      NewsConfig,
-      'topics' | 'relevanceThreshold'
-    > & { readonly systemPrompt?: string }
+    private readonly config: Pick<NewsConfig, 'relevanceThreshold'> & {
+      readonly systemPrompt?: string
+    }
   ) {
     this.cacheVersion = createHash('sha256')
       .update(
@@ -56,7 +58,7 @@ export class RelevanceDetector {
 
   async detectRelevance(
     item: NewsItem,
-    instruction: string
+    filter: Pick<NewsFilter, 'description' | 'instruction'>
   ): Promise<RelevanceResult | null> {
     try {
       const output = await this.model
@@ -72,7 +74,10 @@ export class RelevanceDetector {
             {
               role: 'user',
               content: JSON.stringify({
-                preferences: instruction,
+                preferences: {
+                  original: filter.description,
+                  compiled: filter.instruction,
+                },
                 article: {
                   title: item.title.slice(0, 1000),
                   description: item.description?.slice(0, 3000),

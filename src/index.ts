@@ -31,11 +31,13 @@ async function main() {
 
   const newsStore = new NewsStore(redis)
   const relevanceDetector = new RelevanceDetector(models.newsRelevance, {
-    topics: config.news.topics,
     relevanceThreshold: config.news.relevanceThreshold,
     systemPrompt: config.llm.roles.newsRelevance.systemPrompt,
   })
-  const newsPreferences = new NewsPreferenceStore(redis, config.news.topics)
+  const newsPreferences = new NewsPreferenceStore(
+    redis,
+    config.news.defaultFilter
+  )
   const filter = new ChatNewsFilter(redis, newsPreferences, relevanceDetector)
   const newsPreferenceGenerator = new NewsPreferenceGenerator(
     models.newsPreferences,

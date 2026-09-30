@@ -3,31 +3,28 @@ import type { ChatOpenAI } from '@langchain/openai'
 import type { Redis } from 'ioredis'
 import { z } from 'zod'
 import type { LlmRoleConfig } from '@lib/config/types.js'
-import { ChatSubscriptionStore } from './chat-subscription-store.js'
+import {
+  preferenceDescriptionSchema,
+  generatedCriteriaSchema,
+  newsPreferenceSchema,
+  legacyPreferenceSchema,
+  renderCriteria,
+  type NewsPreference,
+  type NewsFilter,
+} from './preference-schema.js'
 
-export const preferenceDescriptionSchema = z.string().trim().min(1).max(3000)
-const instructionSchema = z.string().trim().min(1).max(3000)
-const generatedSchema = z.object({ instruction: instructionSchema })
-const customPreferenceSchema = z.object({
-  mode: z.literal('custom'),
-  description: preferenceDescriptionSchema,
-  instruction: instructionSchema,
-  revision: z.string().uuid(),
-  generatedAt: z.string().datetime(),
-  model: z.string(),
-})
-const savedPreferenceSchema = z.discriminatedUnion('mode', [
-  customPreferenceSchema,
-  z.object({ mode: z.literal('default'), revision: z.string().uuid() }),
-])
+export {
+  preferenceDescriptionSchema,
+  type NewsPreference,
+  type NewsFilter,
+} from './preference-schema.js'
 
-export type NewsPreference = z.infer<typeof customPreferenceSchema>
-export type NewsFilter = {
-  readonly instruction: string
-  readonly revision: string
-  readonly preference?: NewsPreference
-  readonly source: 'custom' | 'topics' | 'default'
-}
+const generationRules = `Extract interests, exclusions, and title requirements into the required structured arrays.
+Every criterion must contain an actionable rule and sourceText quoted exactly from the user's description.
+Preserve all preferences and exceptions, including negative preferences and title-quality rules.
+Do not invent interests, expand named companies to all technology news, or return a heading instead of criteria.
+Require at least one interest. Empty exclusions or titleRules arrays are allowed only when none were specified.
+The original description remains authoritative; your criteria are a compilation aid only.`
 
 export class NewsPreferenceGenerator {
   constructor(
@@ -38,35 +35,46 @@ export class NewsPreferenceGenerator {
   async generate(description: string): Promise<NewsPreference> {
     const input = preferenceDescriptionSchema.parse(description)
     const output = await this.model
-      .withStructuredOutput(generatedSchema)
+      .withStructuredOutput(generatedCriteriaSchema)
       .invoke(
         [
-          { role: 'system', content: this.config.systemPrompt },
+          {
+            role: 'system',
+            content: [this.config.systemPrompt, generationRules].join('\n\n'),
+          },
           { role: 'user', content: input },
         ],
         { signal: AbortSignal.timeout(60_000) }
       )
-    const { instruction } = generatedSchema.parse(output)
-    return {
+    const criteria = generatedCriteriaSchema.parse(output)
+    return newsPreferenceSchema.parse({
       mode: 'custom',
+      version: 2,
       description: input,
-      instruction,
+      criteria,
+      instruction: renderCriteria(criteria),
       revision: randomUUID(),
       generatedAt: new Date().toISOString(),
       model: this.config.model,
-    }
+    })
   }
 }
 
 export class NewsPreferenceStore {
   constructor(
     private readonly redis: Redis,
-    private readonly defaultTopics: readonly string[]
+    private readonly defaultFilter: string
   ) {}
 
   async save(chatId: string, preference: NewsPreference): Promise<void> {
-    const parsed = customPreferenceSchema.parse(preference)
-    await this.redis.set(`news:preferences:${chatId}`, JSON.stringify(parsed))
+    const parsed = newsPreferenceSchema.parse(preference)
+    await this.redis.set(
+      `news:preferences:${chatId}`,
+      JSON.stringify({
+        ...parsed,
+        instruction: renderCriteria(parsed.criteria),
+      })
+    )
   }
 
   async reset(chatId: string): Promise<void> {
@@ -80,29 +88,64 @@ export class NewsPreferenceStore {
   }
 
   async resolve(chatId: string): Promise<NewsFilter> {
-    const raw = await this.redis.get(`news:preferences:${chatId}`)
-    const saved =
-      raw === null ? null : savedPreferenceSchema.parse(JSON.parse(raw))
-    if (saved?.mode === 'custom') {
+    const key = `news:preferences:${chatId}`
+    const raw = await this.redis.get(key)
+    if (raw !== null) {
+      const saved: unknown = JSON.parse(raw)
+      const marker = z
+        .object({ mode: z.literal('default'), revision: z.string().uuid() })
+        .safeParse(saved)
+      if (marker.success) return this.defaultSettings(marker.data.revision)
+      const original = legacyPreferenceSchema.parse(saved)
+      const current = newsPreferenceSchema.safeParse(saved)
+      const preference = current.success
+        ? {
+            ...current.data,
+            instruction: renderCriteria(current.data.criteria),
+          }
+        : { ...original, instruction: original.description }
       return {
-        instruction: saved.instruction,
-        revision: saved.revision,
-        preference: saved,
+        description: preference.description,
+        instruction: preference.instruction,
+        revision: `v2:${preference.revision}`,
+        preference,
         source: 'custom',
       }
     }
-    const subscription =
-      saved === null
-        ? await new ChatSubscriptionStore(this.redis).getSubscription(chatId)
-        : null
-    const topics = subscription?.topics ?? this.defaultTopics
-    const instruction = `Select articles substantively covering at least one of these interests: ${topics.join(', ')}. Passing mentions and uncertain matches are insufficient.`
+
+    const subscription = await this.redis.get(
+      `news:chat-subscription:${chatId}`
+    )
+    const legacy =
+      subscription === null
+        ? null
+        : z
+            .object({ topics: z.array(z.string()).optional() })
+            .parse(JSON.parse(subscription))
+    if (legacy?.topics?.length) {
+      const description = `Select substantive articles about: ${legacy.topics.join(', ')}. Passing mentions are insufficient.`
+      const migrated = legacyPreferenceSchema.parse({
+        mode: 'custom',
+        description,
+        instruction: description,
+        revision: randomUUID(),
+        generatedAt: new Date().toISOString(),
+        model: 'legacy-topic-migration',
+      })
+      await this.redis.set(key, JSON.stringify(migrated), 'NX')
+      return this.resolve(chatId)
+    }
+    return this.defaultSettings('default')
+  }
+
+  private defaultSettings(revision: string): NewsFilter {
     return {
-      instruction,
+      description: this.defaultFilter,
+      instruction: this.defaultFilter,
       revision: createHash('sha256')
-        .update(JSON.stringify([saved?.revision, topics]))
+        .update(JSON.stringify([revision, this.defaultFilter]))
         .digest('hex'),
-      source: subscription?.topics ? 'topics' : 'default',
+      source: 'default',
     }
   }
 }

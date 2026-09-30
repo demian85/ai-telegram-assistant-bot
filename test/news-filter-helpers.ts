@@ -1,6 +1,7 @@
 import { ChatOpenAI } from '@langchain/openai'
 import { z } from 'zod'
 import { randomUUID } from 'node:crypto'
+import { renderCriteria } from '../src/lib/news/preference-schema.js'
 import { ChatNewsFilter } from '../src/lib/news/chat-news-filter.js'
 import {
   NewsPreferenceStore,
@@ -62,8 +63,18 @@ export const acceptedDecision = {
 export function preference(instruction = 'interest-a'): NewsPreference {
   return {
     mode: 'custom',
-    description: 'description-a',
-    instruction,
+    version: 2,
+    description: instruction,
+    criteria: {
+      interests: [{ rule: instruction, sourceText: instruction }],
+      exclusions: [],
+      titleRules: [],
+    },
+    instruction: renderCriteria({
+      interests: [{ rule: instruction, sourceText: instruction }],
+      exclusions: [],
+      titleRules: [],
+    }),
     revision: randomUUID(),
     generatedAt: '2026-09-29T00:00:00.000Z',
     model: 'preference-model',
@@ -89,11 +100,8 @@ export function filterHarness(
 ) {
   const redis = new InMemoryRedis()
   const model = structuredModel(respond)
-  const preferences = new NewsPreferenceStore(redis.asRedis(), [
-    'default-topic',
-  ])
+  const preferences = new NewsPreferenceStore(redis.asRedis(), 'default-topic')
   const detector = new RelevanceDetector(model, {
-    topics: [],
     relevanceThreshold: 80,
     systemPrompt: 'scoring-role',
   })

@@ -30,13 +30,19 @@ export function loadAppConfig(options: LoadAppConfigOptions = {}): AppConfig {
   const rootDir = options.rootDir ?? process.cwd()
   const defaultsPath = path.resolve(rootDir, DEFAULTS_FILE_NAME)
   const userConfigPath = path.resolve(rootDir, USER_CONFIG_FILE_NAME)
-  const defaultsConfig = readJsonFile(defaultsPath, true)
+  const defaultsConfig = migrateNewsConfig(
+    readJsonFile(defaultsPath, true),
+    defaultsPath
+  )
   assertKnownTopLevelKeys(defaultsConfig, defaultsPath)
 
   let userConfig: JsonObject = {}
 
   if (existsSync(userConfigPath)) {
-    userConfig = readJsonFile(userConfigPath, false)
+    userConfig = migrateNewsConfig(
+      readJsonFile(userConfigPath, false),
+      userConfigPath
+    )
     assertKnownTopLevelKeys(userConfig, userConfigPath)
   }
 
@@ -45,6 +51,24 @@ export function loadAppConfig(options: LoadAppConfigOptions = {}): AppConfig {
   }
 
   return validateAppConfig(deepMerge(defaultsConfig, userConfig), defaultsPath)
+}
+
+function migrateNewsConfig(config: JsonObject, sourcePath: string): JsonObject {
+  if (!isPlainObject(config.news) || config.news.topics === undefined)
+    return config
+  const { topics, ...news } = config.news
+  const legacyTopics = expectStringArray(topics, 'news.topics', sourcePath)
+  return {
+    ...config,
+    news: {
+      ...news,
+      defaultFilter:
+        news.defaultFilter ??
+        (legacyTopics.length
+          ? `Select articles substantively covering at least one of these interests: ${legacyTopics.join(', ')}. Passing mentions and uncertain matches are insufficient.`
+          : 'Reject all articles until news preferences are configured.'),
+    },
+  }
 }
 
 function readJsonFile(filePath: string, required: boolean): JsonObject {
@@ -151,6 +175,16 @@ function validateTelegramConfig(value: JsonValue, sourcePath: string) {
 
 function validateNewsConfig(value: JsonValue, sourcePath: string) {
   assertPlainObject(value, 'news', sourcePath)
+  const defaultFilter = expectString(
+    value.defaultFilter,
+    'news.defaultFilter',
+    sourcePath
+  ).trim()
+  if (!defaultFilter || defaultFilter.length > 3000) {
+    throw new Error(
+      `Invalid news.defaultFilter in ${sourcePath}: expected 1-3000 characters`
+    )
+  }
 
   return {
     feeds: expectStringArray(value.feeds, 'news.feeds', sourcePath),
@@ -174,7 +208,7 @@ function validateNewsConfig(value: JsonValue, sourcePath: string) {
       'news.maxArticlesPerPoll',
       sourcePath
     ),
-    topics: expectStringArray(value.topics, 'news.topics', sourcePath),
+    defaultFilter,
   }
 }
 

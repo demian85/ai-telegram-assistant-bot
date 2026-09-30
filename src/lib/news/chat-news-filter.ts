@@ -24,6 +24,7 @@ export class ChatNewsFilter {
         JSON.stringify([
           context.filter.revision,
           context.filter.instruction,
+          context.filter.description,
           this.detector.cacheVersion,
           item.title,
           item.description,
@@ -38,10 +39,7 @@ export class ChatNewsFilter {
         relevanceDecisionSchema.parse(JSON.parse(cached))
       )
     }
-    const result = await this.detector.detectRelevance(
-      item,
-      context.filter.instruction
-    )
+    const result = await this.detector.detectRelevance(item, context.filter)
     if (result !== null) {
       await this.redis.setex(key, 14 * 24 * 60 * 60, JSON.stringify(result))
     }

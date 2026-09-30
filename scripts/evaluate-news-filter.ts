@@ -8,6 +8,12 @@ const description =
   "I prefer articles about coding agents, coding tools, agent harnesses and programming languages, but I'm not interested in Python or new releases of LangChain tools."
 const cases = [
   {
+    title: 'How to Claim Your Cut of Apple’s $250 Million Siri Settlement',
+    content:
+      'Apple may pay out up to $95 for each eligible iPhone purchased by someone who felt misled about Siri’s release. You have until December 21 to submit a claim.',
+    expected: false,
+  },
+  {
     title: 'Coding agent evaluation harness',
     content:
       'An engineering guide to sandboxing coding agents, measuring patch correctness, and integrating test execution into an agent harness.',
@@ -65,7 +71,6 @@ async function main() {
     config.llm.roles.newsPreferences
   ).generate(description)
   const detector = new RelevanceDetector(models.newsRelevance, {
-    topics: config.news.topics,
     relevanceThreshold: config.news.relevanceThreshold,
     systemPrompt: config.llm.roles.newsRelevance.systemPrompt,
   })
@@ -89,7 +94,7 @@ async function main() {
         publishedAt: new Date(0),
         fetchedAt: new Date(0),
       },
-      generated.instruction
+      generated
     )
     const matches = result !== null && result.isRelevant === sample.expected
     if (matches) passed++

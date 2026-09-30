@@ -12,6 +12,7 @@
 | Summary levels, clearing, message counts                               | `summary-store.test.ts`                                 |
 | Subscription cadence, delivery isolation, rollback                     | `news-subscriptions.test.ts`                            |
 | Config validation and merge behavior                                   | `config-loading.test.ts`, `config-load-config.test.mjs` |
+| Filter generation corruption and legacy migration                      | `news-filter-regression.test.ts`                        |
 | Shared doubles and update builders                                     | `test-helpers.ts`                                       |
 | Preference persistence, model schema, exclusion gates, cache revisions | `news-filter.test.ts`, `news-filter-helpers.ts`         |
 | Shared scheduling/query/tool filtering and stale results               | `news-filter-paths.test.ts`                             |
@@ -32,7 +33,7 @@
 - `FakeTelegraf.on` assigns text, photo, then inline-query handlers by registration order; it ignores filters.
 - If handler registration changes, review the fake alongside the routing tests.
 - `createTextUpdate` supplies a leading command entity automatically unless explicitly overridden.
-- Passing these tests does not verify Telegram transport, live Redis behavior, or provider responses. `npm run news:evaluate` separately exercises the configured provider against eight labeled synthetic cases.
+- Passing these tests does not verify Telegram transport, live Redis behavior, or provider responses. `npm run news:evaluate` separately exercises the configured provider against nine labeled cases.
 
 ## Config tests
 

@@ -17,7 +17,7 @@ import {
 import { createNoopQueue, createNoopWorker } from './test-helpers.js'
 
 const scoringInput = z.object({
-  preferences: z.string(),
+  preferences: z.object({ original: z.string(), compiled: z.string() }),
   article: z.object({ title: z.string(), content: z.string().optional() }),
 })
 function input(request: ModelRequest) {
@@ -71,7 +71,7 @@ test('scheduled delivery, queries, summary, and news tool share saved preference
       model: harness.model,
       newsConfig: {
         feeds: [],
-        topics: ['different-default'],
+        defaultFilter: 'different-default',
         relevanceThreshold: 80,
         pollIntervalMinutes: 5,
         deliveryCheckIntervalSeconds: 60,
@@ -104,14 +104,14 @@ test('scheduled delivery, queries, summary, and news tool share saved preference
   expect(toolOutput).not.toContain('https://example.test/excluded')
   expect(respond).toHaveBeenCalledTimes(2)
   expect(
-    respond.mock.calls.map(([request]) => input(request).preferences)
+    respond.mock.calls.map(([request]) => input(request).preferences.original)
   ).toEqual(['custom-filter', 'custom-filter'])
 })
 
 test('news tool uses trusted invocation context and fails closed when absent', async () => {
   const harness = filterHarness((request) => ({
     ...acceptedDecision,
-    matchesInterest: input(request).preferences === 'profile-b',
+    matchesInterest: input(request).preferences.original === 'profile-b',
   }))
   await harness.preferences.save('a', preference('profile-a'))
   await harness.preferences.save('b', preference('profile-b'))
@@ -156,7 +156,7 @@ test('delivery discards a result if preferences change while the model is scorin
       model: harness.model,
       newsConfig: {
         feeds: [],
-        topics: [],
+        defaultFilter: 'news interests',
         relevanceThreshold: 80,
         pollIntervalMinutes: 5,
         deliveryCheckIntervalSeconds: 60,

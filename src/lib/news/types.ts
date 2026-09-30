@@ -23,7 +23,6 @@ export interface NewsChatSubscription {
   subscribedAt?: Date
   unsubscribedAt?: Date
   lastSentAt?: Date
-  topics?: string[]
 }
 
 export interface NewsDeliveryRecord {
@@ -38,7 +37,7 @@ export interface NewsConfig {
   deliveryCheckIntervalSeconds: number
   relevanceThreshold: number
   maxArticlesPerPoll: number
-  topics: string[]
+  defaultFilter: string
 }
 
 export const defaultNewsIntervalSeconds = 300

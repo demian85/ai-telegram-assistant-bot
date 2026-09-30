@@ -50,6 +50,74 @@ const validDefaultsConfig = {
 }
 
 describe('loadAppConfig', () => {
+  test('migrates legacy topic overrides before merging modern defaults', () => {
+    const tempDir = createTempDir()
+    const legacyTopic = 'Custom legacy interest'
+    try {
+      writeFileSync(
+        path.join(tempDir, 'config.defaults.json'),
+        JSON.stringify({
+          ...validDefaultsConfig,
+          news: {
+            ...validDefaultsConfig.news,
+            defaultFilter: 'Shipped default instruction',
+          },
+        })
+      )
+      writeFileSync(
+        path.join(tempDir, 'config.json'),
+        JSON.stringify({
+          ...validDefaultsConfig,
+          news: { ...validDefaultsConfig.news, topics: [legacyTopic] },
+        })
+      )
+      const config = loadAppConfig({ rootDir: tempDir })
+      expect(config.news.defaultFilter).toContain(legacyTopic)
+      expect(config.news).not.toHaveProperty('topics')
+    } finally {
+      cleanupTempDir(tempDir)
+    }
+  })
+
+  test('prefers an explicit default filter over legacy topics', () => {
+    const tempDir = createTempDir()
+    const defaultFilter = 'My explicit filter'
+    try {
+      writeFileSync(
+        path.join(tempDir, 'config.defaults.json'),
+        JSON.stringify({
+          ...validDefaultsConfig,
+          news: { ...validDefaultsConfig.news, defaultFilter },
+        })
+      )
+      expect(loadAppConfig({ rootDir: tempDir }).news.defaultFilter).toBe(
+        defaultFilter
+      )
+    } finally {
+      cleanupTempDir(tempDir)
+    }
+  })
+
+  test.each(['', '   ', 'x'.repeat(3001)])(
+    'rejects invalid default filter length',
+    (defaultFilter) => {
+      const tempDir = createTempDir()
+      try {
+        writeFileSync(
+          path.join(tempDir, 'config.defaults.json'),
+          JSON.stringify({
+            ...validDefaultsConfig,
+            news: { ...validDefaultsConfig.news, defaultFilter },
+          })
+        )
+        expect(() => loadAppConfig({ rootDir: tempDir })).toThrow(
+          /news.defaultFilter/
+        )
+      } finally {
+        cleanupTempDir(tempDir)
+      }
+    }
+  )
   test('inherits the new role for existing overrides and honors a separate preference model', () => {
     const tempDir = createTempDir()
     const newRole = {

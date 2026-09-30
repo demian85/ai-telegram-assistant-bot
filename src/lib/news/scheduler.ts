@@ -80,14 +80,13 @@ export class NewsScheduler {
     const relevanceDetector =
       dependencies.relevanceDetector ??
       new RelevanceDetector(config.model, {
-        topics: config.newsConfig.topics,
         relevanceThreshold: config.newsConfig.relevanceThreshold,
       })
     this.filter =
       dependencies.filter ??
       new ChatNewsFilter(
         config.redis,
-        new NewsPreferenceStore(config.redis, config.newsConfig.topics),
+        new NewsPreferenceStore(config.redis, config.newsConfig.defaultFilter),
         relevanceDetector
       )
     this.chatSubscriptionStore =

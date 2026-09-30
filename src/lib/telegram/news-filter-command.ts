@@ -32,8 +32,13 @@ export class NewsFilterCommand {
         if (active.preference) {
           await ctx.reply(`Your description:\n${active.preference.description}`)
         }
+        const label = active.preference
+          ? 'version' in active.preference
+            ? 'Compiled selection rules'
+            : 'Active filter (using your original preferences)'
+          : 'Default selection rules'
         await ctx.reply(
-          `Active news filter (${active.source}):\n${active.instruction}\n\nUse /newsfilter <what you like and dislike> to replace it, or /newsfilter reset for configured defaults.`
+          `${label}:\n${active.instruction}\n\nYour original preferences take precedence. Use /newsfilter <what you like and dislike> to replace them, or /newsfilter reset for defaults.`
         )
         return
       }

@@ -15,7 +15,7 @@ export interface NewsAppConfig {
   deliveryCheckIntervalSeconds: number
   relevanceThreshold: number
   maxArticlesPerPoll: number
-  topics: string[]
+  defaultFilter: string
 }
 
 export interface LlmRoleConfig {

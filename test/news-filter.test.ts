@@ -25,7 +25,10 @@ test.each([
     // Given
     const { detector } = filterHarness(() => ({ ...decision, reason: 'test' }))
     // When
-    const result = await detector.detectRelevance(article(), 'interest-a')
+    const result = await detector.detectRelevance(
+      article(),
+      preference('interest-a')
+    )
     // Then
     expect(result?.isRelevant).toBe(expected)
   }
@@ -41,7 +44,7 @@ test('persists original preferences across store instances without changing subs
   // When
   await preferences.save('a', custom)
   // Then
-  const reopened = new NewsPreferenceStore(redis.asRedis(), ['default-topic'])
+  const reopened = new NewsPreferenceStore(redis.asRedis(), 'default-topic')
   expect((await reopened.resolve('a')).preference).toEqual(custom)
   expect((await reopened.resolve('b')).source).toBe('default')
   expect(await subscriptions.getSubscription('a')).toEqual(before)
@@ -50,10 +53,11 @@ test('persists original preferences across store instances without changing subs
 test('reset restores configured defaults instead of old custom topics', async () => {
   // Given
   const { redis, preferences } = filterHarness()
-  await new ChatSubscriptionStore(redis.asRedis()).setTopics('a', [
-    'legacy-topic',
-  ])
-  expect((await preferences.resolve('a')).source).toBe('topics')
+  await redis.set(
+    'news:chat-subscription:a',
+    JSON.stringify({ topics: ['legacy-topic'] })
+  )
+  expect((await preferences.resolve('a')).source).toBe('custom')
   await preferences.save('a', preference())
   // When
   await preferences.reset('a')
@@ -112,7 +116,6 @@ test('invalidates cached decisions when scoring configuration changes', async ()
     redis.asRedis(),
     preferences,
     new RelevanceDetector(model, {
-      topics: [],
       relevanceThreshold: 99,
       systemPrompt: 'changed-role',
     })
@@ -143,7 +146,12 @@ test('retries scoring after a failed provider response instead of caching reject
 
 test('generates validated preferences with the configured role and preserves original input', async () => {
   // Given
-  const respond = vi.fn(() => ({ instruction: 'generated-instruction' }))
+  const criteria = {
+    interests: [{ rule: 'user-input', sourceText: 'user-input' }],
+    exclusions: [],
+    titleRules: [],
+  }
+  const respond = vi.fn(() => criteria)
   const generator = new NewsPreferenceGenerator(structuredModel(respond), {
     model: 'generator-model',
     supportsVision: false,
@@ -154,7 +162,7 @@ test('generates validated preferences with the configured role and preserves ori
   // Then
   expect(result).toMatchObject({
     description: 'user-input',
-    instruction: 'generated-instruction',
+    criteria,
     model: 'generator-model',
   })
   expect(respond).toHaveBeenCalledTimes(1)

@@ -90,10 +90,10 @@ function createBotHarness(
   const redis = new InMemoryRedis()
   const telegraf = new FakeTelegraf()
   const subscriptions = new ChatSubscriptionStore(redis.asRedis())
-  const preferences = new NewsPreferenceStore(redis.asRedis(), [
-    'AI',
-    'technology',
-  ])
+  const preferences = new NewsPreferenceStore(
+    redis.asRedis(),
+    'AI and technology'
+  )
   const agentService = new StubAgentService(options.imageSupport ?? true)
   const config: Config = {
     telegram: {
@@ -101,7 +101,7 @@ function createBotHarness(
       whitelistedUsers: [],
     },
     news: {
-      topics: ['AI', 'technology'],
+      defaultFilter: 'AI and technology',
     },
   }
 
@@ -151,6 +151,22 @@ test('newsfilter saves and displays preferences without invoking the chat agent'
     shown.replyLog.some((reply) => reply.text.includes(generated.description))
   ).toBe(true)
   expect(agentService.invocations).toEqual([])
+  expect(await subscriptions.getSubscription('100')).toBeNull()
+})
+
+test('does not advertise or execute the removed topics command', async () => {
+  const { telegraf, bot, subscriptions } = createBotHarness()
+  expect(
+    bot['registeredCommands'].map((command) => command.command)
+  ).not.toContain('topics')
+  await telegraf.dispatch(
+    createTextUpdate({
+      chatId: 100,
+      chatType: 'private',
+      username: 'alice',
+      text: '/topics changed',
+    })
+  )
   expect(await subscriptions.getSubscription('100')).toBeNull()
 })
 
