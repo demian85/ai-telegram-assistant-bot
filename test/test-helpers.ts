@@ -25,13 +25,15 @@ export class InMemoryRedis {
     return this.values.get(key) ?? null
   }
 
-  async set(key: string, value: string): Promise<'OK'> {
+  async set(key: string, value: string, mode?: 'NX'): Promise<'OK' | null> {
+    if (mode === 'NX' && this.values.has(key)) return null
     this.values.set(key, value)
     return 'OK'
   }
 
   async setex(key: string, _ttlSeconds: number, value: string): Promise<'OK'> {
-    return this.set(key, value)
+    await this.set(key, value)
+    return 'OK'
   }
 
   async del(...keys: string[]): Promise<number> {
@@ -455,7 +457,17 @@ export function createTextUpdate(input: {
         username: input.username,
       },
       text: input.text,
-      entities: input.entities,
+      entities:
+        input.entities ??
+        (input.text.startsWith('/')
+          ? [
+              {
+                type: 'bot_command',
+                offset: 0,
+                length: input.text.split(/\s/, 1)[0].length,
+              },
+            ]
+          : undefined),
     },
   }
 }

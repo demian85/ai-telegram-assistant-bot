@@ -4,6 +4,6 @@ export interface Config {
     whitelistedUsers: string[]
   }
   news: {
-    topics: string[]
+    defaultFilter: string
   }
 }

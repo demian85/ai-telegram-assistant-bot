@@ -55,7 +55,7 @@ const defaultNewsConfig = {
   deliveryCheckIntervalSeconds: 60,
   relevanceThreshold: 70,
   maxArticlesPerPoll: 10,
-  topics: [],
+  defaultFilter: 'news interests',
 }
 
 async function overwriteSubscription(

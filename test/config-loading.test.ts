@@ -50,6 +50,151 @@ const validDefaultsConfig = {
 }
 
 describe('loadAppConfig', () => {
+  test('migrates legacy topic overrides before merging modern defaults', () => {
+    const tempDir = createTempDir()
+    const legacyTopic = 'Custom legacy interest'
+    try {
+      writeFileSync(
+        path.join(tempDir, 'config.defaults.json'),
+        JSON.stringify({
+          ...validDefaultsConfig,
+          news: {
+            ...validDefaultsConfig.news,
+            defaultFilter: 'Shipped default instruction',
+          },
+        })
+      )
+      writeFileSync(
+        path.join(tempDir, 'config.json'),
+        JSON.stringify({
+          ...validDefaultsConfig,
+          news: { ...validDefaultsConfig.news, topics: [legacyTopic] },
+        })
+      )
+      const config = loadAppConfig({ rootDir: tempDir })
+      expect(config.news.defaultFilter).toContain(legacyTopic)
+      expect(config.news).not.toHaveProperty('topics')
+    } finally {
+      cleanupTempDir(tempDir)
+    }
+  })
+
+  test('prefers an explicit default filter over legacy topics', () => {
+    const tempDir = createTempDir()
+    const defaultFilter = 'My explicit filter'
+    try {
+      writeFileSync(
+        path.join(tempDir, 'config.defaults.json'),
+        JSON.stringify({
+          ...validDefaultsConfig,
+          news: { ...validDefaultsConfig.news, defaultFilter },
+        })
+      )
+      expect(loadAppConfig({ rootDir: tempDir }).news.defaultFilter).toBe(
+        defaultFilter
+      )
+    } finally {
+      cleanupTempDir(tempDir)
+    }
+  })
+
+  test.each(['', '   ', 'x'.repeat(3001)])(
+    'rejects invalid default filter length',
+    (defaultFilter) => {
+      const tempDir = createTempDir()
+      try {
+        writeFileSync(
+          path.join(tempDir, 'config.defaults.json'),
+          JSON.stringify({
+            ...validDefaultsConfig,
+            news: { ...validDefaultsConfig.news, defaultFilter },
+          })
+        )
+        expect(() => loadAppConfig({ rootDir: tempDir })).toThrow(
+          /news.defaultFilter/
+        )
+      } finally {
+        cleanupTempDir(tempDir)
+      }
+    }
+  )
+  test('inherits the new role for existing overrides and honors a separate preference model', () => {
+    const tempDir = createTempDir()
+    const newRole = {
+      model: 'preference-default',
+      supportsVision: false,
+      systemPrompt: 'preference-role',
+    }
+    try {
+      writeFileSync(
+        path.join(tempDir, 'config.defaults.json'),
+        JSON.stringify({
+          ...validDefaultsConfig,
+          llm: {
+            ...validDefaultsConfig.llm,
+            roles: {
+              ...validDefaultsConfig.llm.roles,
+              newsPreferences: newRole,
+            },
+          },
+        })
+      )
+      writeFileSync(
+        path.join(tempDir, 'config.json'),
+        JSON.stringify(validDefaultsConfig)
+      )
+      expect(
+        loadAppConfig({ rootDir: tempDir }).llm.roles.newsPreferences
+      ).toEqual(newRole)
+
+      writeFileSync(
+        path.join(tempDir, 'config.json'),
+        JSON.stringify({
+          ...validDefaultsConfig,
+          llm: {
+            ...validDefaultsConfig.llm,
+            roles: {
+              ...validDefaultsConfig.llm.roles,
+              newsPreferences: { ...newRole, model: 'preference-override' },
+            },
+          },
+        })
+      )
+      const config = loadAppConfig({ rootDir: tempDir })
+      expect(config.llm.roles.newsPreferences.model).toBe('preference-override')
+      expect(config.llm.roles.newsRelevance.model).toBe('relevance-model')
+    } finally {
+      cleanupTempDir(tempDir)
+    }
+  })
+
+  test('rejects a malformed preference role', () => {
+    const tempDir = createTempDir()
+    try {
+      writeFileSync(
+        path.join(tempDir, 'config.defaults.json'),
+        JSON.stringify({
+          ...validDefaultsConfig,
+          llm: {
+            ...validDefaultsConfig.llm,
+            roles: {
+              ...validDefaultsConfig.llm.roles,
+              newsPreferences: {
+                model: 42,
+                supportsVision: false,
+                systemPrompt: 'role',
+              },
+            },
+          },
+        })
+      )
+      expect(() => loadAppConfig({ rootDir: tempDir })).toThrow(
+        /newsPreferences.model/
+      )
+    } finally {
+      cleanupTempDir(tempDir)
+    }
+  })
   test('loads defaults config successfully', () => {
     const tempDir = createTempDir()
 

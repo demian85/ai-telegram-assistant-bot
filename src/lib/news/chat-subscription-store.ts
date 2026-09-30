@@ -6,17 +6,6 @@ import {
   type NewsChatSubscription,
 } from './types.js'
 
-export function normalizeTopics(topicsInput: string): string[] {
-  return topicsInput
-    .split(',')
-    .map((t) => t.trim().toLowerCase())
-    .filter((t) => t.length > 0)
-}
-
-export function formatTopics(topics: string[]): string {
-  return topics.join(', ')
-}
-
 export class ChatSubscriptionStore {
   private readonly keyPrefix = 'news:chat-subscription:'
   private readonly indexKey = 'news:chat-subscriptions'
@@ -147,24 +136,6 @@ export class ChatSubscriptionStore {
     return next
   }
 
-  async setTopics(
-    chatId: string,
-    topics: string[],
-    now: Date = new Date()
-  ): Promise<NewsChatSubscription> {
-    const current = await this.getOrCreateSubscription(chatId, now)
-
-    const next: NewsChatSubscription = {
-      ...current,
-      topics,
-      updatedAt: now,
-    }
-
-    await this.saveSubscription(next)
-
-    return next
-  }
-
   private async saveSubscription(
     subscription: NewsChatSubscription
   ): Promise<void> {
@@ -220,11 +191,6 @@ export class ChatSubscriptionStore {
         `News interval must be an integer between ${minNewsIntervalSeconds} and ${maxNewsIntervalSeconds} seconds`
       )
     }
-  }
-
-  async getTopics(chatId: string, globalTopics: string[]): Promise<string[]> {
-    const subscription = await this.getSubscription(chatId)
-    return subscription?.topics ?? globalTopics
   }
 
   async deleteSubscription(chatId: string): Promise<void> {

@@ -21,7 +21,7 @@
 
 - `createAgentTools()` always includes calculator, help, and current time.
 - It adds `get_recent_news` only when a news query service exists and the chat role does not declare web-search support.
-- `get_recent_news` currently calls the global `fetchAndGetRecentNews()` path without chat ID or per-chat topics; Telegram `/news` has its own topic-aware path.
+- `invokeLive()` supplies raw chat identity as `configurable.newsChatId`; `get_recent_news` uses it to call `fetchAndGetRecentNewsForChat()`. Never expose chat identity as a model-supplied tool argument. Missing context fails closed.
 - Tool definitions live in `tools.ts`; adding a tool requires wiring it into the factory used by `src/index.ts`.
 
 ## Checks

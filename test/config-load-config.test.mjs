@@ -124,13 +124,19 @@ test('loadAppConfig deep-merges objects while replacing arrays and scalars', () 
         deliveryCheckIntervalSeconds: 60,
         relevanceThreshold: 85,
         maxArticlesPerPoll: 10,
-        topics: ['agents'],
+        defaultFilter: expect.any(String),
       })
       expect(config.llm).toEqual({
         apiKeyEnvVar: 'LLM_API_KEY',
         baseUrl: 'https://override.test/api',
         defaultModel: 'baseline-model',
         roles: {
+          newsPreferences: {
+            model: 'news-default',
+            supportsVision: false,
+            supportsWebSearch: false,
+            systemPrompt: expect.any(String),
+          },
           chat: {
             model: 'chat-default',
             supportsVision: false,

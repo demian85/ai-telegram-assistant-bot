@@ -12,7 +12,7 @@
     "deliveryCheckIntervalSeconds": 300,
     "relevanceThreshold": 80,
     "maxArticlesPerPoll": 5,
-    "topics": ["AI", "Developer tools", "Automation", "Robotics"]
+    "defaultFilter": "Select articles substantively covering at least one of these interests: AI, Developer tools, Automation, Robotics. Passing mentions and uncertain matches are insufficient."
   },
   "llm": {
     "apiKeyEnvVar": "LLM_API_KEY",
@@ -33,7 +33,13 @@
       "newsRelevance": {
         "model": "qwen3-5-35b-a3b",
         "supportsVision": true,
-        "systemPrompt": "Score how relevant a story is for an AI-focused audience. Prefer clear, actionable judgments."
+        "systemPrompt": "Judge whether an article substantively matches the chat's news preferences. Be selective, honor exclusions, and reject uncertain or incidental matches."
+      },
+      "newsPreferences": {
+        "model": "qwen3-5-35b-a3b",
+        "supportsVision": false,
+        "supportsWebSearch": false,
+        "systemPrompt": "Compile the user's news preferences into structured interests, exclusions, and title rules. Preserve every preference and exception. Ground each rule in an exact quote from the user's description. Never invent interests or replace concrete interests with generic technology news."
       }
     }
   }

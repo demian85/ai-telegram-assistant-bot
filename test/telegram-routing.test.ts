@@ -1,4 +1,9 @@
-import { test, expect } from 'vitest'
+import { test, expect, vi, afterEach } from 'vitest'
+import {
+  NewsPreferenceStore,
+  type NewsPreferenceGenerator,
+} from '../src/lib/news/preferences.js'
+import { preference } from './news-filter-helpers.js'
 import type { Config } from '../src/lib/types.js'
 import { Bot } from '../src/lib/telegram/index.js'
 import { ChatSubscriptionStore } from '../src/lib/news/index.js'
@@ -8,6 +13,31 @@ import {
   createPhotoUpdate,
   createTextUpdate,
 } from './test-helpers.js'
+
+const originalListeners = {
+  uncaughtException: new Set(process.listeners('uncaughtException')),
+  unhandledRejection: new Set(process.listeners('unhandledRejection')),
+  SIGINT: new Set(process.listeners('SIGINT')),
+  SIGTERM: new Set(process.listeners('SIGTERM')),
+}
+afterEach(() => {
+  for (const listener of process.listeners('uncaughtException')) {
+    if (!originalListeners.uncaughtException.has(listener))
+      process.removeListener('uncaughtException', listener)
+  }
+  for (const listener of process.listeners('unhandledRejection')) {
+    if (!originalListeners.unhandledRejection.has(listener))
+      process.removeListener('unhandledRejection', listener)
+  }
+  for (const listener of process.listeners('SIGINT')) {
+    if (!originalListeners.SIGINT.has(listener))
+      process.removeListener('SIGINT', listener)
+  }
+  for (const listener of process.listeners('SIGTERM')) {
+    if (!originalListeners.SIGTERM.has(listener))
+      process.removeListener('SIGTERM', listener)
+  }
+})
 
 class StubAgentService {
   readonly persisted: Array<{
@@ -51,10 +81,19 @@ class StubAgentService {
   }
 }
 
-function createBotHarness(options: { imageSupport?: boolean } = {}) {
+function createBotHarness(
+  options: {
+    imageSupport?: boolean
+    generator?: Pick<NewsPreferenceGenerator, 'generate'>
+  } = {}
+) {
   const redis = new InMemoryRedis()
   const telegraf = new FakeTelegraf()
   const subscriptions = new ChatSubscriptionStore(redis.asRedis())
+  const preferences = new NewsPreferenceStore(
+    redis.asRedis(),
+    'AI and technology'
+  )
   const agentService = new StubAgentService(options.imageSupport ?? true)
   const config: Config = {
     telegram: {
@@ -62,7 +101,7 @@ function createBotHarness(options: { imageSupport?: boolean } = {}) {
       whitelistedUsers: [],
     },
     news: {
-      topics: ['AI', 'technology'],
+      defaultFilter: 'AI and technology',
     },
   }
 
@@ -79,11 +118,124 @@ function createBotHarness(options: { imageSupport?: boolean } = {}) {
       redis: redis.asRedis(),
       agentService: agentService as never,
       chatSubscriptionStore: subscriptions,
+      newsPreferences: preferences,
+      newsPreferenceGenerator: options.generator,
     }
   )
 
-  return { bot, redis, telegraf, subscriptions, agentService }
+  return { bot, redis, telegraf, subscriptions, agentService, preferences }
 }
+
+test('newsfilter saves and displays preferences without invoking the chat agent', async () => {
+  const generated = preference()
+  const generate = vi.fn(async () => generated)
+  const { telegraf, preferences, agentService, subscriptions } =
+    createBotHarness({ generator: { generate } })
+  const update = (text: string) =>
+    createTextUpdate({
+      chatId: 100,
+      chatType: 'private',
+      username: 'alice',
+      text,
+    })
+
+  const saved = await telegraf.dispatch(update('/newsfilter my interests'))
+  const shown = await telegraf.dispatch(update('/newsfilter'))
+
+  expect((await preferences.resolve('100')).preference).toEqual(generated)
+  expect(generate).toHaveBeenCalledWith('my interests')
+  expect(
+    saved.replyLog.some((reply) => reply.text.includes(generated.instruction))
+  ).toBe(true)
+  expect(
+    shown.replyLog.some((reply) => reply.text.includes(generated.description))
+  ).toBe(true)
+  expect(agentService.invocations).toEqual([])
+  expect(await subscriptions.getSubscription('100')).toBeNull()
+})
+
+test('does not advertise or execute the removed topics command', async () => {
+  const { telegraf, bot, subscriptions } = createBotHarness()
+  expect(
+    bot['registeredCommands'].map((command) => command.command)
+  ).not.toContain('topics')
+  await telegraf.dispatch(
+    createTextUpdate({
+      chatId: 100,
+      chatType: 'private',
+      username: 'alice',
+      text: '/topics changed',
+    })
+  )
+  expect(await subscriptions.getSubscription('100')).toBeNull()
+})
+
+test('newsfilter keeps previous preferences when generation fails', async () => {
+  const { telegraf, preferences } = createBotHarness({
+    generator: {
+      generate: async () => {
+        throw new Error('provider unavailable')
+      },
+    },
+  })
+  const previous = preference()
+  await preferences.save('100', previous)
+
+  await telegraf.dispatch(
+    createTextUpdate({
+      chatId: 100,
+      chatType: 'private',
+      username: 'alice',
+      text: '/newsfilter replacement',
+    })
+  )
+
+  expect((await preferences.resolve('100')).preference).toEqual(previous)
+})
+
+test.each(['member', 'administrator', 'creator'])(
+  'newsfilter enforces group authorization for %s',
+  async (status) => {
+    const generate = vi.fn(async () => preference())
+    const { telegraf, preferences } = createBotHarness({
+      generator: { generate },
+    })
+    telegraf.telegram.getChatMember = async () => ({ status })
+
+    await telegraf.dispatch(
+      createTextUpdate({
+        chatId: -100,
+        chatType: 'group',
+        username: 'alice',
+        text: '/newsfilter@bot my interests',
+      })
+    )
+
+    expect(generate).toHaveBeenCalledTimes(status === 'member' ? 0 : 1)
+    expect((await preferences.resolve('-100')).source).toBe(
+      status === 'member' ? 'default' : 'custom'
+    )
+  }
+)
+
+test('newsfilter reset preserves subscription cadence and needs no generator', async () => {
+  const { telegraf, preferences, subscriptions } = createBotHarness()
+  await preferences.save('100', preference())
+  await subscriptions.subscribe('100')
+  const previous = await subscriptions.setIntervalSeconds('100', 1800)
+
+  await telegraf.dispatch(
+    createTextUpdate({
+      chatId: 100,
+      chatType: 'private',
+      username: 'alice',
+      text: '/newsfilter reset',
+    })
+  )
+
+  expect((await preferences.resolve('100')).source).toBe('default')
+  expect(await subscriptions.getSubscription('100')).toEqual(previous)
+})
 
 test('private text messages invoke the agent directly', async () => {
   const { telegraf, agentService } = createBotHarness()
