@@ -67,10 +67,11 @@ npm run build
 - `src/index.ts` composes shared services. Tests inject Redis, Telegraf, and BullMQ doubles through constructors.
 - Memory keys use normalized `private:<id>` or `group:<id>` scope; news subscriptions and Telegram sends use raw chat IDs.
 - Private text invokes the agent. Group messages enter shared memory, while ordinary replies require an explicit bot mention. Telegram privacy mode controls which updates Telegram sends; there is no app-level toggle.
-- The four configured roles are `chat`, `summarizer`, `newsRelevance`, and `newsPreferences`. Provider settings are shared; role models differ. Three-role configs remain compatible.
+- The configured roles are `chat`, `summarizer`, `newsRelevance`, and `newsPreferences`. Chat, summarizer, and preferences are generative. News relevance uses a typed `/decisions` API with `news.decisionModel` and the same provider URL/key. Venice and `jev-latest` are suggested defaults; other providers/models need the same decision API contract. The legacy relevance role retains its system prompt and config compatibility. Three-role configs remain compatible.
 - Bootstrap uses the chat, relevance, and preference role system prompts. The summarizer still constructs its prompt internally.
 - `/topics` is removed; legacy config/subscription topics migrate to natural-language filters. `news.defaultFilter` supplies defaults.
 - `/newsfilter` validates structured interests, exclusions, and title rules with source quotes. Original descriptions remain authoritative in every relevance call. Scheduled news, `/news`, `/summary`, and the feed tool share `ChatNewsFilter`; explicit exclusions override scores.
+- The decision model uses separate interest, exclusion, and title Choice questions plus a coverage Score rubric. `news.decisionConfidenceThreshold` gates semantic certainty independently of `news.relevanceThreshold`; unresolved answers and provider failures remain uncached.
 - News polling and delivery are separate jobs. A chat receives scheduled articles only while its subscription is enabled.
 - Only one live long-polling instance may use a Telegram bot token; a second produces Telegram 409 Conflict.
 

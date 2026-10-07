@@ -16,6 +16,8 @@
 | Shared doubles and update builders                                     | `test-helpers.ts`                                       |
 | Preference persistence, model schema, exclusion gates, cache revisions | `news-filter.test.ts`, `news-filter-helpers.ts`         |
 | Shared scheduling/query/tool filtering and stale results               | `news-filter-paths.test.ts`                             |
+| Decision HTTP contract, retries, confidence, title and coverage gates  | `news-decisions.test.ts`                                |
+| Configurable decision models and generative-role compatibility         | `news-decision-config.test.ts`                          |
 
 ## Harness conventions
 
@@ -39,7 +41,7 @@
 
 - Create temporary config directories and pass `loadAppConfig({ rootDir })`.
 - Keep fixtures self-contained and remove temporary directories after each case.
-- Preserve both test formats; the `.mjs` suite uses `createRequire` to load the TypeScript loader.
+- Preserve both test formats; the `.mjs` suite imports the same TypeScript config loader through Vitest.
 - Cover required defaults, optional overrides, validation errors, and object/array merge behavior.
 
 ## Focused commands
