@@ -70,6 +70,8 @@ npm run news:evaluate
 
 The final command makes live, billable requests with the configured provider/key. It generates preferences and evaluates nine labeled articles without Telegram sends or Redis writes. Provider errors or unresolved confidence stop it unsuccessfully. Test exclusions, incidental mentions, title rules, sparse content, and injected article instructions on your own feeds when changing the model or thresholds. See [Choosing a news decision model](news-model-selection.md).
 
+For a real-feed comparison with recorded inputs and a strict remote-request budget, use the separate scripts described in [Live news model comparisons](news-model-evaluation.md). These evaluation adapters do not change the bot's production provider configuration.
+
 HTTP calls use the installed OpenAI SDK as a transport for the custom decision route, with two retries, a 20-second per-attempt timeout, and a 60-second overall abort signal. Invalid answers are parsed at the response boundary and withheld. Rate-limit failures do not create cached rejections, so later evaluations can retry.
 
 After building, restart the existing bot process through its normal deployment procedure. Only one polling instance may use the bot token. Observe scheduled delivery and manual news queries after restart.

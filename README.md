@@ -260,6 +260,8 @@ This reuses your configured provider credentials, generates preferences with the
 
 A passing offline suite proves the application gates and data flow, not model accuracy. Run the provider evaluation after changing models or prompts.
 
+For comparisons on frozen real RSS inputs, see [Live news model comparisons](docs/news-model-evaluation.md). The opt-in scripts save actual requests and answers separately from the mocked unit suite, with a ten-request cap for the configured remote decision provider.
+
 ## Project structure
 
 - `src/index.ts` - bootstrap and service wiring
