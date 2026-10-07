@@ -11,13 +11,14 @@
     "pollIntervalMinutes": 15,
     "deliveryCheckIntervalSeconds": 300,
     "relevanceThreshold": 80,
+    "decisionModel": "jev-latest",
+    "decisionConfidenceThreshold": 0.8,
     "maxArticlesPerPoll": 5,
     "defaultFilter": "Select articles substantively covering at least one of these interests: AI, Developer tools, Automation, Robotics. Passing mentions and uncertain matches are insufficient."
   },
   "llm": {
     "apiKeyEnvVar": "LLM_API_KEY",
     "baseUrl": "https://api.venice.ai/api/v1",
-    "defaultModel": "llama-3.3-70b",
     "roles": {
       "chat": {
         "model": "gpt-4.1-mini",
@@ -31,8 +32,6 @@
         "systemPrompt": "Turn conversation history into concise memory notes. Preserve decisions, names, and open questions."
       },
       "newsRelevance": {
-        "model": "qwen3-5-35b-a3b",
-        "supportsVision": true,
         "systemPrompt": "Judge whether an article substantively matches the chat's news preferences. Be selective, honor exclusions, and reject uncertain or incidental matches."
       },
       "newsPreferences": {

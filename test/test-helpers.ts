@@ -366,6 +366,8 @@ export class FakeTelegraf {
 export function createNoopQueue() {
   return {
     add: async () => undefined,
+    getRepeatableJobs: async () => [],
+    removeRepeatableByKey: async () => false,
     close: async () => undefined,
   }
 }

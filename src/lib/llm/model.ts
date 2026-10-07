@@ -1,8 +1,14 @@
 import { ChatOpenAI } from '@langchain/openai'
 
 import type { AppConfig, LlmRole } from '@lib/config/types.js'
+import { VeniceDecisionModel } from './decision-model.js'
 
-export type LlmRoleModels = Record<LlmRole, ChatOpenAI>
+export type LlmRoleModels = Record<
+  Exclude<LlmRole, 'newsRelevance'>,
+  ChatOpenAI
+> & {
+  readonly newsRelevance: VeniceDecisionModel
+}
 
 export function createLlmRoleModels(config: AppConfig): LlmRoleModels {
   const apiKey = process.env[config.llm.apiKeyEnvVar]
@@ -20,11 +26,11 @@ export function createLlmRoleModels(config: AppConfig): LlmRoleModels {
       apiKey,
       config.llm.baseUrl
     ),
-    newsRelevance: createLlmModel(
-      config.llm.roles.newsRelevance,
+    newsRelevance: new VeniceDecisionModel({
+      model: config.news.decisionModel ?? 'jev-latest',
       apiKey,
-      config.llm.baseUrl
-    ),
+      baseURL: config.llm.baseUrl,
+    }),
     newsPreferences: createLlmModel(
       config.llm.roles.newsPreferences,
       apiKey,
@@ -34,7 +40,7 @@ export function createLlmRoleModels(config: AppConfig): LlmRoleModels {
 }
 
 function createLlmModel(
-  roleConfig: AppConfig['llm']['roles'][LlmRole],
+  roleConfig: AppConfig['llm']['roles'][Exclude<LlmRole, 'newsRelevance'>],
   apiKey: string,
   baseUrl: string
 ): ChatOpenAI {
@@ -46,6 +52,7 @@ function createLlmModel(
 }
 
 export function llmSupportsVision(role: LlmRole, config: AppConfig): boolean {
+  if (role === 'newsRelevance') return false
   return config.llm.roles[role].supportsVision
 }
 
@@ -53,9 +60,11 @@ export function llmSupportsWebSearch(
   role: LlmRole,
   config: AppConfig
 ): boolean {
+  if (role === 'newsRelevance') return false
   return config.llm.roles[role].supportsWebSearch ?? false
 }
 
 export function getLlmModelForRole(role: LlmRole, config: AppConfig): string {
+  if (role === 'newsRelevance') return config.news.decisionModel ?? 'jev-latest'
   return config.llm.roles[role].model
 }

@@ -1,11 +1,8 @@
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { createRequire } from 'node:module'
 import { test, expect } from 'vitest'
-
-const require = createRequire(import.meta.url)
-const { loadAppConfig } = require('../src/lib/config/load-config.ts')
+import { loadAppConfig } from '../src/lib/config/load-config.js'
 
 function withTempConfigDir(files, run) {
   const rootDir = mkdtempSync(path.join(os.tmpdir(), 'venice-config-test-'))

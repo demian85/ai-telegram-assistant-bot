@@ -1,3 +1,5 @@
+import type { NewsAppConfig } from '@lib/config/types.js'
+
 export interface NewsItem {
   id: string
   source: string
@@ -31,14 +33,7 @@ export interface NewsDeliveryRecord {
   sentAt: Date
 }
 
-export interface NewsConfig {
-  feeds: string[]
-  pollIntervalMinutes: number
-  deliveryCheckIntervalSeconds: number
-  relevanceThreshold: number
-  maxArticlesPerPoll: number
-  defaultFilter: string
-}
+export type NewsConfig = NewsAppConfig
 
 export const defaultNewsIntervalSeconds = 300
 export const minNewsIntervalSeconds = 300
