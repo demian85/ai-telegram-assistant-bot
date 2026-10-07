@@ -87,9 +87,16 @@ async function main() {
     return
   }
   const baselineFile = resolve(values.input)
-  const baseline = baselineSchema.parse(
+  const parsedBaseline = baselineSchema.safeParse(
     JSON.parse(await readFile(baselineFile, 'utf8'))
   )
+  if (!parsedBaseline.success) {
+    throw new RangeError(
+      'Baseline does not match the current eligibility/coverage contract. Record a new baseline with scripts/compare-news-models.ts before replaying Clef.',
+      { cause: parsedBaseline.error }
+    )
+  }
+  const baseline = parsedBaseline.data
   const model = 'ggml-org/Clef-Flash-Q4_K_M'
   const baseUrl = z.string().url().parse(values['base-url'])
   const modelsResponse = await fetch(`${baseUrl}/models`, {
@@ -203,11 +210,7 @@ async function main() {
         ? Math.round(parsed.data.answers.relevance.score * 20)
         : null,
       gateConfidence: parsed.success
-        ? Math.min(
-            parsed.data.answers.interest.confidence,
-            parsed.data.answers.exclusion.confidence,
-            parsed.data.answers.title.confidence
-          )
+        ? parsed.data.answers.eligibility.confidence
         : null,
     })
     await writeFile(output, JSON.stringify(report, null, 2) + '\n')

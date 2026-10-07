@@ -21,6 +21,7 @@ export {
 
 const generationRules = `Extract interests, exclusions, and title requirements into the required structured arrays.
 Every criterion must contain an actionable rule and sourceText quoted exactly from the user's description.
+Keep rules concise. Group related interests and equivalent exclusions without losing scope or exceptions. Use short phrases; do not repeat section labels or "Select articles substantively covering" in every rule.
 Preserve all preferences and exceptions, including negative preferences and title-quality rules.
 Do not invent interests, expand named companies to all technology news, or return a heading instead of criteria.
 Require at least one interest. Empty exclusions or titleRules arrays are allowed only when none were specified.

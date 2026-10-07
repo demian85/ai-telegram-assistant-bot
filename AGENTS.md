@@ -81,7 +81,7 @@ npm run build
 - Configured roles are `chat`, `summarizer`, `newsRelevance`, and `newsPreferences`. The three generative roles use `ChatOpenAI`; relevance uses `VeniceDecisionModel` with `news.decisionModel` and the same provider URL/key. Venice and `jev-latest` are defaults, not a restriction on providers implementing that decision contract.
 - Modern relevance config contains only `systemPrompt`; retired model/capability fields and unused `llm.defaultModel` remain optional legacy inputs. Three-role configs resolve preferences from a legacy relevance model or the summarizer, never the decision model.
 - Bootstrap uses the chat, relevance, and preference role system prompts. The summarizer still constructs its prompt internally.
-- Scheduled news, `/news`, `/summary`, and the feed tool share saved per-chat preferences. Original descriptions remain authoritative; compiled criteria supplement them and exclusions override scores. Provider-native web search is outside this filter.
+- Scheduled news, `/news`, `/summary`, and the feed tool share saved per-chat preferences. Relevance evaluates title and description together using original preferences once, one eligibility Choice and one coverage Score. Compiled criteria remain inspectable; exclusions override scores. Provider-native web search is outside this filter.
 
 ## Avoid
 

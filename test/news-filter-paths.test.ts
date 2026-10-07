@@ -19,17 +19,18 @@ function input(request: DecisionRequest) {
   return request.state
 }
 
-test('queries score beyond the first ten candidates and retain article content', async () => {
+test('queries score beyond the first ten candidates using article descriptions', async () => {
   const harness = filterHarness((request) => ({
     ...acceptedDecision,
-    matchesInterest: input(request).article.content === 'qualifying-body',
+    eligible: input(request).article.description === 'qualifying-description',
   }))
   const store = new NewsStore(harness.redis.asRedis())
   for (let index = 0; index < 11; index++) {
     await store.storeItem({
       ...article(`item-${index}`),
       fetchedAt: new Date(Date.now() - index * 1000),
-      content: index === 10 ? 'qualifying-body' : 'other-body',
+      description:
+        index === 10 ? 'qualifying-description' : 'other-description',
     })
   }
   const query = new NewsQueryService({
@@ -45,7 +46,7 @@ test('queries score beyond the first ten candidates and retain article content',
 test('scheduled delivery, queries, summary, and news tool share saved preferences', async () => {
   const respond = vi.fn((request: DecisionRequest) => ({
     ...acceptedDecision,
-    excluded: input(request).article.title === 'excluded',
+    eligible: input(request).article.title !== 'excluded',
   }))
   const harness = filterHarness(respond)
   await harness.preferences.save('100', preference('custom-filter'))
@@ -97,14 +98,14 @@ test('scheduled delivery, queries, summary, and news tool share saved preference
   expect(toolOutput).not.toContain('https://example.test/excluded')
   expect(respond).toHaveBeenCalledTimes(2)
   expect(
-    respond.mock.calls.map(([request]) => input(request).preferences.original)
+    respond.mock.calls.map(([request]) => input(request).preferences)
   ).toEqual(['custom-filter', 'custom-filter'])
 })
 
 test('news tool uses trusted invocation context and fails closed when absent', async () => {
   const harness = filterHarness((request) => ({
     ...acceptedDecision,
-    matchesInterest: input(request).preferences.original === 'profile-b',
+    eligible: input(request).preferences === 'profile-b',
   }))
   await harness.preferences.save('a', preference('profile-a'))
   await harness.preferences.save('b', preference('profile-b'))

@@ -201,11 +201,7 @@ async function main() {
       result,
       outcome: outcome(result, validResponse !== null),
       gateConfidence: validResponse
-        ? Math.min(
-            validResponse.answers.interest.confidence,
-            validResponse.answers.exclusion.confidence,
-            validResponse.answers.title.confidence
-          )
+        ? validResponse.answers.eligibility.confidence
         : null,
     }
   }

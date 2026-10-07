@@ -1,5 +1,4 @@
 import { expect, test, vi } from 'vitest'
-import { z } from 'zod'
 import { NewsPreferenceGenerator } from '../src/lib/news/preferences.js'
 import { preference } from './news-filter-helpers.js'
 import {
@@ -36,19 +35,12 @@ test('rejects the observed heading-only generator response', async () => {
 })
 
 test('supplies original preferences when scoring the Siri article with a broken legacy filter', async () => {
-  const payloadSchema = z.object({ preferences: z.unknown() })
   const inputs: unknown[] = []
   const harness = filterHarness((request) => {
-    const payload = payloadSchema.parse(request.state)
-    inputs.push(payload.preferences)
-    const criteria = z
-      .object({ original: z.string() })
-      .safeParse(payload.preferences)
+    inputs.push(request.state.preferences)
     return {
       ...acceptedDecision,
-      matchesInterest: !(
-        criteria.success && criteria.data.original === original
-      ),
+      eligible: request.state.preferences !== original,
     }
   })
   await harness.redis.set(
@@ -68,7 +60,7 @@ test('supplies original preferences when scoring the Siri article with a broken 
     siri
   )
 
-  expect(inputs[0]).toMatchObject({ original })
+  expect(inputs[0]).toBe(original)
   expect(result?.isRelevant).toBe(false)
 })
 

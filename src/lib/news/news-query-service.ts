@@ -83,7 +83,7 @@ export class NewsQueryService {
     for (const item of items) {
       const result = await filter.evaluate(context, item)
       if (result?.isRelevant) {
-        selected.push({ ...item, relevanceScore: result.score })
+        selected.push({ ...item, relevanceScore: Math.round(result.score) })
         if (selected.length >= limit) break
       }
     }

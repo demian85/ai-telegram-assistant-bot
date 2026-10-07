@@ -35,12 +35,10 @@ export class ChatNewsFilter {
       .update(
         JSON.stringify([
           context.filter.revision,
-          context.filter.instruction,
           context.filter.description,
           this.detector.cacheVersion,
-          item.title,
-          item.description,
-          item.content,
+          item.title.slice(0, 1000),
+          item.description?.slice(0, 3000),
         ])
       )
       .digest('hex')
