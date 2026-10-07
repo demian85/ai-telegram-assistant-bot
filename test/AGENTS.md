@@ -18,6 +18,7 @@
 | Shared scheduling/query/tool filtering and stale results               | `news-filter-paths.test.ts`                             |
 | Decision HTTP contract, retries, confidence, title and coverage gates  | `news-decisions.test.ts`                                |
 | Configurable decision models and generative-role compatibility         | `news-decision-config.test.ts`                          |
+| Modern config cleanup, legacy inputs and preference-model fallback     | `config-modern.test.ts`                                 |
 
 ## Harness conventions
 

@@ -26,7 +26,6 @@
   "llm": {
     "apiKeyEnvVar": "LLM_API_KEY",
     "baseUrl": "https://api.venice.ai/api/v1",
-    "defaultModel": "mistral-31-24b",
     "roles": {
       "chat": {
         "model": "grok-41-fast:enable_web_search=auto&enable_web_scraping=true",
@@ -40,8 +39,6 @@
         "systemPrompt": "Summarize conversations accurately and briefly. Keep key facts, decisions, and action items."
       },
       "newsRelevance": {
-        "model": "qwen3-5-9b",
-        "supportsVision": true,
         "systemPrompt": "Judge whether an article substantively matches the chat's news preferences. Be selective, honor exclusions, and reject uncertain or incidental matches."
       },
       "newsPreferences": {

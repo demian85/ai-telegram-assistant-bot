@@ -32,7 +32,7 @@ This is a news-section fragment, not a complete override file. The loader still 
 
 The shipped decision defaults are `decisionModel: "jev-latest"`, `decisionConfidenceThreshold: 0.8`, and `relevanceThreshold: 70`; the sample config uses coverage threshold 80. Set `llm.baseUrl` to your provider's API base URL and `llm.apiKeyEnvVar` to the name of the environment variable containing its key. Changing these shared settings also affects the generative roles.
 
-`llm.roles.newsPreferences.model` still extracts preferences when `/newsfilter` changes them. Chat and summaries retain their configured generative models. `llm.roles.newsRelevance.systemPrompt` supplements each decision question. Its legacy `model` and capability flags remain for config compatibility and older preference fallback configurations; they no longer select article inference.
+`llm.roles.newsPreferences.model` still extracts preferences when `/newsfilter` changes them. Chat and summaries retain their configured generative models. `llm.roles.newsRelevance` needs only `systemPrompt`, which supplements each decision question. Omit its retired `model`, `supportsVision`, and `supportsWebSearch` fields, and the unused `llm.defaultModel`, from modern configs. Old configs may still supply them for compatibility. If neither config file defines `newsPreferences`, generation uses the legacy relevance model when present, otherwise the summarizer model; it never uses the decision model.
 
 ## Coverage threshold and confidence threshold
 

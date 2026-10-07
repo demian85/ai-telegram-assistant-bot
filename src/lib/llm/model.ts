@@ -40,7 +40,7 @@ export function createLlmRoleModels(config: AppConfig): LlmRoleModels {
 }
 
 function createLlmModel(
-  roleConfig: AppConfig['llm']['roles'][LlmRole],
+  roleConfig: AppConfig['llm']['roles'][Exclude<LlmRole, 'newsRelevance'>],
   apiKey: string,
   baseUrl: string
 ): ChatOpenAI {
@@ -52,6 +52,7 @@ function createLlmModel(
 }
 
 export function llmSupportsVision(role: LlmRole, config: AppConfig): boolean {
+  if (role === 'newsRelevance') return false
   return config.llm.roles[role].supportsVision
 }
 
@@ -59,6 +60,7 @@ export function llmSupportsWebSearch(
   role: LlmRole,
   config: AppConfig
 ): boolean {
+  if (role === 'newsRelevance') return false
   return config.llm.roles[role].supportsWebSearch ?? false
 }
 

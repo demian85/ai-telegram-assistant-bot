@@ -1,3 +1,5 @@
+import type { NewsRelevanceRoleConfig } from './news-decision-config.js'
+
 export type LlmRole =
   | 'chat'
   | 'summarizer'
@@ -30,8 +32,10 @@ export interface LlmRoleConfig {
 export interface LlmConfig {
   apiKeyEnvVar: string
   baseUrl: string
-  defaultModel: string
-  roles: Record<LlmRole, LlmRoleConfig>
+  readonly defaultModel?: string
+  roles: Record<Exclude<LlmRole, 'newsRelevance'>, LlmRoleConfig> & {
+    readonly newsRelevance: NewsRelevanceRoleConfig
+  }
 }
 
 export interface AppConfig {
