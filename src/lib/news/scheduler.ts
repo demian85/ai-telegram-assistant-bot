@@ -6,7 +6,7 @@ import { NewsStore } from './news-store.js'
 import { RelevanceDetector } from './relevance-detector.js'
 import { ChatSubscriptionStore } from './chat-subscription-store.js'
 import { NewsDeliveryStore } from './news-delivery-store.js'
-import type { ChatOpenAI } from '@langchain/openai'
+import type { VeniceDecisionModel } from '@lib/llm/decision-model.js'
 import logger from '@lib/logger.js'
 import { ChatNewsFilter } from './chat-news-filter.js'
 import { NewsPreferenceStore } from './preferences.js'
@@ -44,7 +44,7 @@ interface WorkerLike {
 
 export interface NewsSchedulerConfig {
   redis: Redis
-  model: ChatOpenAI
+  model: VeniceDecisionModel
   newsConfig: NewsConfig
   onDeliverArticle?: DeliveryCallback
 }
@@ -81,6 +81,8 @@ export class NewsScheduler {
       dependencies.relevanceDetector ??
       new RelevanceDetector(config.model, {
         relevanceThreshold: config.newsConfig.relevanceThreshold,
+        decisionConfidenceThreshold:
+          config.newsConfig.decisionConfidenceThreshold,
       })
     this.filter =
       dependencies.filter ??

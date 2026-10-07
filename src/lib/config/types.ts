@@ -10,6 +10,8 @@ export interface TelegramConfig {
 }
 
 export interface NewsAppConfig {
+  readonly decisionModel?: string
+  readonly decisionConfidenceThreshold?: number
   feeds: string[]
   pollIntervalMinutes: number
   deliveryCheckIntervalSeconds: number

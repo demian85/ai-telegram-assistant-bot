@@ -18,6 +18,8 @@
     "pollIntervalMinutes": 5,
     "deliveryCheckIntervalSeconds": 60,
     "relevanceThreshold": 70,
+    "decisionModel": "jev-latest",
+    "decisionConfidenceThreshold": 0.8,
     "maxArticlesPerPoll": 10,
     "defaultFilter": "Select articles substantively covering at least one of these interests: AI, Artificial intelligence, Machine learning, LLM, Language model, Anthropic, Claude, Gemini, OpenAI, ChatGPT, DeepSeek, Mistral, xAI, Meta AI, RAG, Vector database, AI agent, Autonomous agent, AI safety, Prompt engineering, AI research, Open source AI, AI chips, GPU, TPU, NVIDIA, AMD, AI startup, Google DeepMind, Perplexity, Text-to-speech, TTS, Speech recognition, STT, Computer vision, Image generation, Stable Diffusion, AI coding, Code generation, Copilot, Cursor. Passing mentions and uncertain matches are insufficient."
   },

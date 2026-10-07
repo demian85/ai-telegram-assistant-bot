@@ -72,12 +72,13 @@ async function main() {
   ).generate(description)
   const detector = new RelevanceDetector(models.newsRelevance, {
     relevanceThreshold: config.news.relevanceThreshold,
+    decisionConfidenceThreshold: config.news.decisionConfidenceThreshold,
     systemPrompt: config.llm.roles.newsRelevance.systemPrompt,
   })
   process.stdout.write(
     JSON.stringify({
       generatorModel: config.llm.roles.newsPreferences.model,
-      relevanceModel: config.llm.roles.newsRelevance.model,
+      relevanceModel: models.newsRelevance.model,
       instruction: generated.instruction,
     }) + '\n'
   )

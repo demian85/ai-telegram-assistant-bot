@@ -1,5 +1,4 @@
 import { expect, test, vi } from 'vitest'
-import { z } from 'zod'
 import {
   NewsQueryService,
   NewsScheduler,
@@ -12,18 +11,12 @@ import {
   article,
   filterHarness,
   preference,
-  type ModelRequest,
+  type DecisionRequest,
 } from './news-filter-helpers.js'
 import { createNoopQueue, createNoopWorker } from './test-helpers.js'
 
-const scoringInput = z.object({
-  preferences: z.object({ original: z.string(), compiled: z.string() }),
-  article: z.object({ title: z.string(), content: z.string().optional() }),
-})
-function input(request: ModelRequest) {
-  return scoringInput.parse(
-    JSON.parse(request.messages.at(-1)?.content ?? '{}')
-  )
+function input(request: DecisionRequest) {
+  return request.state
 }
 
 test('queries score beyond the first ten candidates and retain article content', async () => {
@@ -50,7 +43,7 @@ test('queries score beyond the first ten candidates and retain article content',
 })
 
 test('scheduled delivery, queries, summary, and news tool share saved preferences', async () => {
-  const respond = vi.fn((request: ModelRequest) => ({
+  const respond = vi.fn((request: DecisionRequest) => ({
     ...acceptedDecision,
     excluded: input(request).article.title === 'excluded',
   }))

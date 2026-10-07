@@ -11,6 +11,8 @@
     "pollIntervalMinutes": 15,
     "deliveryCheckIntervalSeconds": 300,
     "relevanceThreshold": 80,
+    "decisionModel": "jev-latest",
+    "decisionConfidenceThreshold": 0.8,
     "maxArticlesPerPoll": 5,
     "defaultFilter": "Select articles substantively covering at least one of these interests: AI, Developer tools, Automation, Robotics. Passing mentions and uncertain matches are insufficient."
   },

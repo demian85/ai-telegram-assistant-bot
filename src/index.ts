@@ -32,6 +32,7 @@ async function main() {
   const newsStore = new NewsStore(redis)
   const relevanceDetector = new RelevanceDetector(models.newsRelevance, {
     relevanceThreshold: config.news.relevanceThreshold,
+    decisionConfidenceThreshold: config.news.decisionConfidenceThreshold,
     systemPrompt: config.llm.roles.newsRelevance.systemPrompt,
   })
   const newsPreferences = new NewsPreferenceStore(

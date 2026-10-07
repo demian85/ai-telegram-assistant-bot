@@ -39,9 +39,7 @@ test('supplies original preferences when scoring the Siri article with a broken 
   const payloadSchema = z.object({ preferences: z.unknown() })
   const inputs: unknown[] = []
   const harness = filterHarness((request) => {
-    const payload = payloadSchema.parse(
-      JSON.parse(request.messages.at(-1)?.content ?? '{}')
-    )
+    const payload = payloadSchema.parse(request.state)
     inputs.push(payload.preferences)
     const criteria = z
       .object({ original: z.string() })
