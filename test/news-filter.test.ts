@@ -138,10 +138,17 @@ test('retries scoring after a failed provider response instead of caching reject
   const item = article()
   expect(await filter.evaluate(context, item)).toBeNull()
   // When
-  const result = await filter.evaluate(context, item)
-  // Then
-  expect(result?.isRelevant).toBe(true)
-  expect(respond).toHaveBeenCalledTimes(2)
+  vi.useFakeTimers({ toFake: ['Date'] })
+  try {
+    vi.setSystemTime(Date.now() + 15 * 60 * 1000)
+    const result = await filter.evaluate(context, item)
+    // Then
+    expect(result?.isRelevant).toBe(true)
+    expect((await filter.evaluate(context, item))?.isRelevant).toBe(true)
+    expect(respond).toHaveBeenCalledTimes(2)
+  } finally {
+    vi.useRealTimers()
+  }
 })
 
 test('generates validated preferences with the configured role and preserves original input', async () => {

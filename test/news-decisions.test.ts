@@ -107,7 +107,7 @@ test('rejects a title failure even with a high substantive relevance score', asy
   })
 })
 
-test('keeps uncertain decisions uncached so subsequent requests can evaluate again', async () => {
+test('withholds uncertain decisions and defers immediate reevaluation', async () => {
   // Given
   const response = decisionResponse(acceptedDecision)
   response.answers.interest.confidence = 0.79
@@ -119,7 +119,7 @@ test('keeps uncertain decisions uncached so subsequent requests can evaluate aga
   const result = await filter.evaluate(context, article())
   // Then
   expect(result).toBeNull()
-  expect(respond).toHaveBeenCalledTimes(2)
+  expect(respond).toHaveBeenCalledTimes(1)
 })
 
 test('invalidates cached acceptance when the independent confidence threshold changes', async () => {
@@ -174,7 +174,7 @@ test.each([
     },
   },
 ])(
-  'withholds malformed decision responses without caching them: %j',
+  'withholds malformed decision responses and defers immediate reevaluation: %j',
   async (response) => {
     // Given
     const respond = vi.fn(() => response)
@@ -185,7 +185,7 @@ test.each([
     const result = await filter.evaluate(context, article())
     // Then
     expect(result).toBeNull()
-    expect(respond).toHaveBeenCalledTimes(2)
+    expect(respond).toHaveBeenCalledTimes(1)
   }
 )
 

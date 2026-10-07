@@ -1,4 +1,5 @@
 import { Queue, Worker } from 'bullmq'
+import type { JobsOptions } from 'bullmq'
 import type { Redis } from 'ioredis'
 import type { NewsConfig } from './types.js'
 import { FeedReader } from './feed-reader.js'
@@ -10,6 +11,10 @@ import type { VeniceDecisionModel } from '@lib/llm/decision-model.js'
 import logger from '@lib/logger.js'
 import { ChatNewsFilter } from './chat-news-filter.js'
 import { NewsPreferenceStore } from './preferences.js'
+import {
+  clearNewsRepeatableJobs,
+  type RepeatableQueue,
+} from './repeatable-jobs.js'
 
 const startupJobRegistrations = [
   { name: 'poll-news', jobId: 'poll-news-startup' },
@@ -29,11 +34,11 @@ type DeliveryCallback = (delivery: {
   article: RelevantArticle
 }) => Promise<void>
 
-interface QueueLike {
+interface QueueLike extends RepeatableQueue {
   add(
     name: string,
     data: Record<string, never>,
-    options?: object
+    options?: JobsOptions
   ): Promise<unknown>
   close(): Promise<unknown>
 }
@@ -190,7 +195,7 @@ export class NewsScheduler {
       `Starting news scheduler with ${this.config.feeds.length} feeds`
     )
 
-    await this.cleanRepeatableJobs()
+    await clearNewsRepeatableJobs(this.queue)
 
     for (const job of startupJobRegistrations) {
       await this.queue.add(job.name, {}, { jobId: job.jobId })
@@ -241,35 +246,6 @@ export class NewsScheduler {
   async stop(): Promise<void> {
     await this.queue.close()
     await this.worker.close()
-  }
-
-  private async cleanRepeatableJobs(): Promise<void> {
-    try {
-      const queue = this.queue as Queue
-      const jobSchedulers = await queue.getJobSchedulers()
-
-      for (const scheduler of jobSchedulers) {
-        if (!scheduler.id) {
-          continue
-        }
-        await queue.removeJobScheduler(scheduler.id)
-        logger.debug(
-          {
-            event: 'news.scheduler.clean_repeatable',
-            schedulerId: scheduler.id,
-          },
-          `Cleaned up job scheduler: ${scheduler.id}`
-        )
-      }
-    } catch (error) {
-      logger.warn(
-        {
-          event: 'news.scheduler.clean_repeatable.warn',
-          err: error,
-        },
-        'Failed to clean repeatable jobs (may be using mocked queue in tests)'
-      )
-    }
   }
 
   private async pollFeeds(): Promise<void> {
@@ -426,7 +402,7 @@ export class NewsScheduler {
         )
         if (result === null) continue
         const { score, isRelevant } = result
-        logger.info(
+        logger.debug(
           {
             event: 'news.delivery.chat.score',
             chatId: subscription.chatId,
