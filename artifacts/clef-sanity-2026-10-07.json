@@ -1,0 +1,72 @@
+[
+  {
+    "sample": {
+      "id": "billing",
+      "state": "I was charged twice for the same order. Please refund the duplicate payment.",
+      "questions": {
+        "route": {
+          "type": "choice",
+          "instructions": "Which support team should handle this request?",
+          "criteria": {
+            "billing": "Payments, charges, invoices, and refunds.",
+            "technical": "Software bugs and service outages."
+          }
+        }
+      }
+    },
+    "status": 200,
+    "body": {
+      "model": "ggml-org/Clef-Flash-Q4_K_M",
+      "answers": {
+        "route": {
+          "type": "choice",
+          "choice": "billing",
+          "probabilities": {
+            "billing": 0.7237566728042844,
+            "technical": 0.27624332719571565
+          },
+          "confidence": 0.4475133456085687
+        }
+      },
+      "usage": {
+        "input_tokens": 154,
+        "output_tokens": 0
+      }
+    }
+  },
+  {
+    "sample": {
+      "id": "technical",
+      "state": "The application crashes whenever I click the Save button. There is no payment or billing issue.",
+      "questions": {
+        "route": {
+          "type": "choice",
+          "instructions": "Which support team should handle this request?",
+          "criteria": {
+            "billing": "Payments, charges, invoices, and refunds.",
+            "technical": "Software bugs and service outages."
+          }
+        }
+      }
+    },
+    "status": 200,
+    "body": {
+      "model": "ggml-org/Clef-Flash-Q4_K_M",
+      "answers": {
+        "route": {
+          "type": "choice",
+          "choice": "technical",
+          "probabilities": {
+            "billing": 0.1687659251778339,
+            "technical": 0.8312340748221662
+          },
+          "confidence": 0.6624681496443323
+        }
+      },
+      "usage": {
+        "input_tokens": 157,
+        "output_tokens": 0
+      }
+    }
+  }
+]

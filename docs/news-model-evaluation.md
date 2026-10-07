@@ -22,11 +22,45 @@ The output path must be new. The script checkpoints results after each article a
 
 Inspect the returned model identity as well as the requested model name. A server can advertise one model while its decision route evaluates another. Keep uncertain decisions distinct from confident rejections and provider errors. Coverage scores and confidence remain separate, and confidence scales need evaluation when switching models.
 
+## Compare native Clef without new Jev requests
+
+`scripts/compare-clef-news.ts` reuses the recorded Jev/Laya answers and evaluates only `ggml-org/Clef-Flash-Q4_K_M`. It freezes the saved supplementary prompt and thresholds as well as the preferences and articles. It verifies discovery and response model identities, and checks each outgoing state and question object against the recorded Jev request. Changed question-builder code can therefore cause replay to stop with an input-mismatch error.
+
+Clef's GGUF is a native decision model, not a text-generating chat model. Its [model card](https://huggingface.co/ggml-org/Clef-Flash-GGUF) specifies `/v1/systemone`. Atomic Chat 2.1.8 advertised the downloaded Clef model under its regular chat provider during the recorded run, but chat completions failed and its decision endpoint still returned Laya. Use a native Clef-capable server and inspect the actual returned model identity.
+
+Start an existing compatible `llama-server` binary with your downloaded GGUF. The recorded run used Atomic Chat's installed llama.cpp b11463 backend; no new installation was needed. Replace the model path below with your existing file:
+
+```bash
+llama-server \
+  --model /path/to/your/model.gguf \
+  --alias ggml-org/Clef-Flash-Q4_K_M \
+  --host 127.0.0.1 --port 3785 \
+  --ctx-size 8192 --batch-size 4096 --ubatch-size 4096 \
+  --parallel 1 --gpu-layers all --no-webui
+```
+
+The [b11463 server documentation](https://github.com/ggml-org/llama.cpp/blob/b11463/tools/server/README.md) explains that Clef reads all questions jointly and the whole prompt must fit the microbatch. After the server reports that the model is loaded, run in another terminal:
+
+```bash
+node --import tsx scripts/compare-clef-news.ts \
+  --input artifacts/news-model-comparison-2026-10-07.json \
+  --output artifacts/clef-news-comparison-replay.json \
+  --base-url http://127.0.0.1:3785/v1
+```
+
+The output path must be new. This sends up to ten native Clef requests with SDK retries disabled. It makes no Jev or Laya requests, and requires neither Redis nor fetching articles again. Stop the temporary server with Ctrl+C when finished. The evaluation script does not start or stop the server itself or change Atomic Chat's settings. The two recorded support-routing sanity checks are separate evidence and are not automatically rerun by this driver.
+
 ## Recorded evidence
 
 The October 7 comparison used actual titles and RSS excerpts with the saved custom filter, a coverage threshold of 70/100, and a Choice confidence threshold of 0.8. Jev approved three articles, rejected two exclusion controls, and withheld five. Laya withheld all ten. These are results for the recorded input, model, prompt, and runtime combination, not general model-accuracy estimates. The informal expected labels were assigned before provider calls; Jev agreement is not ground truth.
 
 - [Jev/Laya comparison and interpretation](../artifacts/news-model-comparison-2026-10-07.md)
 - [Frozen inputs, request bodies, and raw answers](../artifacts/news-model-comparison-2026-10-07.json)
+
+The native Clef follow-up reused the same inputs and recorded Jev/Laya answers. Clef withheld all ten articles, with coverage scores from 46 to 52, and selected the correct teams in two short support-routing sanity checks. This describes the tested Q4_K_M GGUF/backend combination with unchanged prompts and thresholds; it does not isolate intrinsic model accuracy from quantization, runtime, or prompt effects.
+
+- [Clef comparison, serving behavior, and limitations](../artifacts/clef-news-comparison-2026-10-07.md)
+- [Native Clef request bodies and raw answers](../artifacts/clef-news-comparison-2026-10-07.json)
+- [Support-routing sanity-check inputs and answers](../artifacts/clef-sanity-2026-10-07.json)
 
 Use `--help` on each script for its options. Ordinary repository checks such as `npm run tscheck`, `npm test`, and `npm run lint` do not make live provider requests.
