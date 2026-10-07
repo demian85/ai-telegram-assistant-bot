@@ -1,13 +1,15 @@
 # Agent module
 
+Builds live LangChain invocations, durable text history, and tools with trusted chat context.
+
 ## Where to look
 
-| Change                                    | File                                                      |
-| ----------------------------------------- | --------------------------------------------------------- |
-| Context assembly, invocation, persistence | `index.ts` (`AgentService`)                               |
-| Live image input and durable text shadow  | `content.ts`                                              |
-| Built-in tools and conditional news tool  | `tools.ts`                                                |
-| Behavioral coverage                       | `test/agent-memory.test.ts`, `test/agent-content.test.ts` |
+| Change                                    | File                                                                                         |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Context assembly, invocation, persistence | `index.ts` (`AgentService`)                                                                  |
+| Live image input and durable text shadow  | `content.ts`                                                                                 |
+| Built-in tools and conditional news tool  | `tools.ts`                                                                                   |
+| Behavioral coverage                       | `test/agent-memory.test.ts`, `test/agent-content.test.ts`, `test/agent-news-context.test.ts` |
 
 ## Invocation contracts
 
@@ -21,10 +23,11 @@
 
 - `createAgentTools()` always includes calculator, help, and current time.
 - It adds `get_recent_news` only when a news query service exists and the chat role does not declare web-search support.
-- `invokeLive()` supplies raw chat identity as `configurable.newsChatId`; `get_recent_news` uses it to call `fetchAndGetRecentNewsForChat()`. Never expose chat identity as a model-supplied tool argument. Missing context fails closed.
+- `invokeLive()` strips the private/group prefix for `configurable.newsChatId`; `get_recent_news` passes that trusted value to `fetchAndGetRecentNewsForChat()`. Its model-supplied schema contains only `count` (1-10, default 5); missing context fails closed.
 - Tool definitions live in `tools.ts`; adding a tool requires wiring it into the factory used by `src/index.ts`.
 
 ## Checks
 
 - Run `npm test -- test/agent-content.test.ts test/agent-memory.test.ts` for image and persistence changes.
+- Run `npm test -- test/agent-news-context.test.ts` for invocation/tool context changes. It exercises real `AgentService` to news tool to `NewsQueryService` wiring with a fake chat model and a retrieval spy: `group:-123` reaches retrieval as raw `-123`, while the model supplies only `count`.
 - Use the injected model/Redis seams in tests; live Telegram and provider calls are not needed for these contracts.

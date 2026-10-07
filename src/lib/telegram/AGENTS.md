@@ -1,5 +1,7 @@
 # Telegram boundary
 
+Telegraf middleware routes authorized commands and ordinary text/photos into scoped memory, agent invocations and formatted replies.
+
 ## Where to look
 
 | Concern                          | Entry point                                                    |
@@ -24,6 +26,8 @@
 - `scope.ts` normalizes supergroups to groups and rejects unsupported chat types.
 - Pass `ctx.chatScope` to agent/history operations; use `getSubscriptionChatId` for news subscriptions and preferences.
 - Group invocation requires an explicit Telegram mention of the configured bot username, including photo caption entities.
+- Authorized private ordinary text invokes the agent directly without a mention.
+- Telegram privacy mode determines which group updates the bot receives; there is no application privacy-mode toggle.
 - Strip explicit bot mentions from model input and preserve existing sender attribution for parsed group text and captions.
 - Command handlers have their own routing; ordinary message mention gating happens in `normalizeIncomingMessage`.
 

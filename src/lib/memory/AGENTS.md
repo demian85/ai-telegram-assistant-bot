@@ -1,5 +1,7 @@
 # Memory module
 
+Builds conversation context from raw Redis history and daily/weekly/monthly summaries.
+
 ## Where to look
 
 | Change                                | File                                                                                         |
@@ -14,7 +16,7 @@
 ## Contracts
 
 - `MemoryManager.addMessage()` writes raw history, then synchronously checks daily, weekly, and monthly summary generation. A persistence call can therefore invoke the summarizer model.
-- The context window returns the latest 15 raw messages plus up to 7 daily, 4 weekly, and 3 monthly summaries, using defaults in `types.ts`.
+- The context window returns 15 raw messages by default plus up to 7 daily, 4 weekly, and 3 monthly summaries. `types.ts` supplies the raw-buffer and 1/7/30-day interval defaults; `MemoryManager` merges constructor overrides, passed through `AgentService.memoryConfig`. Summary-count limits remain fixed in `getContextWindow()`.
 - Daily summaries require at least five messages in the period and call `Summarizer`. Weekly summaries require three daily summaries; monthly summaries require two weekly summaries. Weekly/monthly text is aggregated and truncated from existing summaries, without another model call.
 - The caller supplies a normalized private/group scope as `chatId`; raw messages use `conversation:<scope>` and summaries use `memory:summary:<scope>:<level>`.
 - `ConversationStore.getHistory()` reads the Redis list, skips malformed JSON, sorts by timestamp, then applies the requested limit. Raw history is not pruned by this module.

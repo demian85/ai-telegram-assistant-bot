@@ -1,5 +1,7 @@
 # Tests
 
+Offline Vitest behavior coverage with injected service doubles and a real agent/tool graph backed by stubbed HTTP.
+
 ## Test map
 
 | Behavior                                                               | File                                                    |
@@ -8,6 +10,7 @@
 | Normalized conversation scope                                          | `telegram-scope.test.ts`                                |
 | Telegram reply/news formatting                                         | `telegram-util.test.ts`                                 |
 | Live multimodal input and persisted text shadows                       | `agent-content.test.ts`, `agent-memory.test.ts`         |
+| Agent/news tool integration; trusted scope to raw chat ID              | `agent-news-context.test.ts`                            |
 | Conversation persistence                                               | `conversation-store.test.ts`                            |
 | Summary levels, clearing, message counts                               | `summary-store.test.ts`                                 |
 | Subscription cadence, delivery isolation, rollback                     | `news-subscriptions.test.ts`                            |
@@ -16,6 +19,8 @@
 | Shared doubles and update builders                                     | `test-helpers.ts`                                       |
 | Preference persistence, model schema, exclusion gates, cache revisions | `news-filter.test.ts`, `news-filter-helpers.ts`         |
 | Shared scheduling/query/tool filtering and stale results               | `news-filter-paths.test.ts`                             |
+| Retry ceilings, persisted cooldowns, concurrent evaluation sharing     | `news-filter-retries.test.ts`                           |
+| Schedule reconciliation, startup failure, delivery log levels          | `news-scheduler.test.ts`                                |
 | Decision HTTP contract, retries, confidence, title and coverage gates  | `news-decisions.test.ts`                                |
 | Configurable decision models and generative-role compatibility         | `news-decision-config.test.ts`                          |
 | Modern config cleanup, legacy inputs and preference-model fallback     | `config-modern.test.ts`                                 |
