@@ -55,23 +55,24 @@ export function structuredModel(respond: (request: ModelRequest) => unknown) {
 }
 
 export const acceptedDecision = {
-  matchesInterest: true,
-  excluded: false,
-  titleRulesSatisfied: true,
+  eligible: true,
   score: 95,
   reason: 'direct match',
 }
 
 export const decisionRequestSchema = z.object({
   model: z.string(),
-  state: z.object({
-    preferences: z.object({ original: z.string(), compiled: z.string() }),
-    article: z.object({
-      title: z.string(),
-      description: z.string().optional(),
-      content: z.string().optional(),
-    }),
-  }),
+  state: z
+    .object({
+      preferences: z.string(),
+      article: z
+        .object({
+          title: z.string(),
+          description: z.string().optional(),
+        })
+        .strict(),
+    })
+    .strict(),
   questions: z.record(
     z.object({
       type: z.enum(['choice', 'score']),
@@ -83,9 +84,7 @@ export const decisionRequestSchema = z.object({
 export type DecisionRequest = z.infer<typeof decisionRequestSchema>
 
 export function decisionResponse(decision: {
-  readonly matchesInterest: boolean
-  readonly excluded: boolean
-  readonly titleRulesSatisfied?: boolean
+  readonly eligible: boolean
   readonly score: number
 }) {
   const choice = (yes: boolean) => ({
@@ -97,9 +96,7 @@ export function decisionResponse(decision: {
   return {
     model: 'jev-latest',
     answers: {
-      interest: choice(decision.matchesInterest),
-      exclusion: choice(decision.excluded),
-      title: choice(decision.titleRulesSatisfied ?? true),
+      eligibility: choice(decision.eligible),
       relevance: {
         type: 'score',
         score: decision.score / 20,
@@ -123,9 +120,7 @@ export function decisionModel(respond: (request: DecisionRequest) => unknown) {
       const output = await respond(request)
       const decision = z
         .object({
-          matchesInterest: z.boolean(),
-          excluded: z.boolean(),
-          titleRulesSatisfied: z.boolean().optional(),
+          eligible: z.boolean(),
           score: z.number(),
         })
         .safeParse(output)

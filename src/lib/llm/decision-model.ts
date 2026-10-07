@@ -19,9 +19,7 @@ const choiceAnswer = z
 export const decisionResponseSchema = z.object({
   model: z.string().min(1),
   answers: z.object({
-    interest: choiceAnswer,
-    exclusion: choiceAnswer,
-    title: choiceAnswer,
+    eligibility: choiceAnswer,
     relevance: z.object({
       type: z.literal('score'),
       score: z.number().min(0).max(5),
@@ -46,11 +44,10 @@ export type DecisionQuestions = Readonly<
 >
 
 export type DecisionState = {
-  readonly preferences: { readonly original: string; readonly compiled: string }
+  readonly preferences: string
   readonly article: {
     readonly title: string
     readonly description?: string
-    readonly content?: string
   }
 }
 

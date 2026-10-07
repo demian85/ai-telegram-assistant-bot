@@ -47,14 +47,13 @@ test('sends typed news questions to the configured decision endpoint with the re
     },
     {
       description: 'Original exclusions and title rules',
-      instruction: 'Compiled criteria',
     }
   )
   // Then
   expect(result).toMatchObject({
     isRelevant: true,
     score: 95,
-    titleRulesSatisfied: true,
+    eligible: true,
   })
   expect(requests).toHaveLength(1)
   expect(requests[0]).toMatchObject({
@@ -65,14 +64,10 @@ test('sends typed news questions to the configured decision endpoint with the re
   const request = decisionRequestSchema.parse(requests[0]?.body)
   expect(request.model).toBe('jev-latest')
   expect(request.state).toEqual({
-    preferences: {
-      original: 'Original exclusions and title rules',
-      compiled: 'Compiled criteria',
-    },
+    preferences: 'Original exclusions and title rules',
     article: {
       title: 't'.repeat(1000),
       description: 'd'.repeat(3000),
-      content: 'c'.repeat(8000),
     },
   })
   expect(
@@ -83,26 +78,24 @@ test('sends typed news questions to the configured decision endpoint with the re
       ])
     )
   ).toEqual({
-    interest: 'choice',
-    exclusion: 'choice',
-    title: 'choice',
+    eligibility: 'choice',
     relevance: 'score',
   })
   expect(request).not.toHaveProperty('messages')
 })
 
-test('rejects a title failure even with a high substantive relevance score', async () => {
+test('rejects ineligible articles even with a high substantive relevance score', async () => {
   // Given
   const { detector } = filterHarness(() => ({
     ...acceptedDecision,
-    titleRulesSatisfied: false,
+    eligible: false,
   }))
   // When
   const result = await detector.detectRelevance(article(), preference())
   // Then
   expect(result).toMatchObject({
     score: 95,
-    titleRulesSatisfied: false,
+    eligible: false,
     isRelevant: false,
   })
 })
@@ -110,7 +103,7 @@ test('rejects a title failure even with a high substantive relevance score', asy
 test('withholds uncertain decisions and defers immediate reevaluation', async () => {
   // Given
   const response = decisionResponse(acceptedDecision)
-  response.answers.interest.confidence = 0.79
+  response.answers.eligibility.confidence = 0.79
   const respond = vi.fn(() => response)
   const { filter, preferences } = filterHarness(respond)
   const context = { chatId: 'a', filter: await preferences.resolve('a') }
@@ -122,10 +115,21 @@ test('withholds uncertain decisions and defers immediate reevaluation', async ()
   expect(respond).toHaveBeenCalledTimes(1)
 })
 
+test('withholds an uncertain rejection instead of caching it as final', async () => {
+  // Given
+  const response = decisionResponse({ ...acceptedDecision, eligible: false })
+  response.answers.eligibility.confidence = 0.79
+  const { detector } = filterHarness(() => response)
+  // When
+  const result = await detector.detectRelevance(article(), preference())
+  // Then
+  expect(result).toBeNull()
+})
+
 test('invalidates cached acceptance when the independent confidence threshold changes', async () => {
   // Given
   const response = decisionResponse(acceptedDecision)
-  response.answers.interest.confidence = 0.85
+  response.answers.eligibility.confidence = 0.85
   const respond = vi.fn(() => response)
   const { filter, preferences, redis, model } = filterHarness(respond)
   const context = { chatId: 'a', filter: await preferences.resolve('a') }
@@ -151,7 +155,7 @@ test.each([
     ...decisionResponse(acceptedDecision),
     answers: {
       ...decisionResponse(acceptedDecision).answers,
-      title: { type: 'choice', choice: 'yes' },
+      eligibility: { type: 'choice', choice: 'yes' },
     },
   },
   {
@@ -165,7 +169,7 @@ test.each([
     ...decisionResponse(acceptedDecision),
     answers: {
       ...decisionResponse(acceptedDecision).answers,
-      interest: {
+      eligibility: {
         type: 'choice',
         choice: 'yes',
         confidence: 1,
@@ -250,13 +254,26 @@ test('maps fractional rubric positions to coverage scores independently of confi
   expect(result).toMatchObject({ score: 70, isRelevant: false })
 })
 
-test('retains a confident rejection when unrelated judgments are uncertain', async () => {
+test('rejects below-threshold coverage on fresh and cached evaluations', async () => {
+  // Given
+  const respond = vi.fn(() => ({ ...acceptedDecision, score: 79.8 }))
+  const { filter, preferences } = filterHarness(respond)
+  const context = { chatId: 'a', filter: await preferences.resolve('a') }
+  const item = article()
+  // When
+  const fresh = await filter.evaluate(context, item)
+  const cached = await filter.evaluate(context, item)
+  // Then
+  expect([fresh?.isRelevant, cached?.isRelevant]).toEqual([false, false])
+  expect(respond).toHaveBeenCalledTimes(1)
+})
+
+test('retains a confident rejection when coverage confidence is low', async () => {
   // Given
   const response = decisionResponse({
     ...acceptedDecision,
-    matchesInterest: false,
+    eligible: false,
   })
-  response.answers.title.confidence = 0.06
   response.answers.relevance.confidence = 0.1
   const detector = new RelevanceDetector(
     decisionModel(() => response),
@@ -265,5 +282,5 @@ test('retains a confident rejection when unrelated judgments are uncertain', asy
   // When
   const result = await detector.detectRelevance(article(), preference())
   // Then
-  expect(result).toMatchObject({ isRelevant: false, matchesInterest: false })
+  expect(result).toMatchObject({ isRelevant: false, eligible: false })
 })

@@ -409,7 +409,7 @@ export class NewsScheduler {
             itemId: item.id,
             score,
             isRelevant,
-            excluded: result.excluded,
+            eligible: result.eligible,
             filterRevision: filter.revision,
             threshold: this.config.relevanceThreshold,
           },
@@ -453,7 +453,7 @@ export class NewsScheduler {
               title: item.title,
               url: item.url,
               description: item.description,
-              relevanceScore: score,
+              relevanceScore: Math.round(score),
             },
           })
         } catch (error) {
@@ -500,7 +500,7 @@ export class NewsScheduler {
             chatId: subscription.chatId,
             articleId: item.id,
             articleTitle: item.title,
-            relevanceScore: score,
+            relevanceScore: Math.round(score),
           },
           `Delivered article "${item.title.slice(0, 50)}..." to chat ${subscription.chatId}`
         )

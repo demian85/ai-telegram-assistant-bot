@@ -15,7 +15,7 @@ test('persists retry cooldowns and bounds unresolved calls across filter instanc
   vi.setSystemTime(new Date('2026-10-07T00:00:00Z'))
   try {
     const response = decisionResponse(acceptedDecision)
-    response.answers.interest.confidence = 0.79
+    response.answers.eligibility.confidence = 0.79
     const respond = vi.fn(() => response)
     const { filter, preferences, redis, detector } = filterHarness(respond)
     const context = { chatId: 'a', filter: await preferences.resolve('a') }

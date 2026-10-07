@@ -29,7 +29,7 @@ Use held-out cases after tuning; avoid calibrating thresholds on the same exampl
 
 ## Tune the two independent thresholds
 
-`news.relevanceThreshold` remains the minimum coverage score, computed as `Math.round(rubricPosition * 20)` on a 0-100 scale. `news.decisionConfidenceThreshold` separately controls certainty in the interest, exclusion, and title judgments. A model can confidently find partial coverage that falls below the coverage threshold.
+`news.relevanceThreshold` remains the minimum coverage score, computed as `rubricPosition * 20` on a 0-100 scale, with rounding only for display. `news.decisionConfidenceThreshold` separately controls certainty in the combined eligibility judgment. Both eligibility and coverage use the article title and description together. A model can confidently find partial coverage that falls below the coverage threshold.
 
 Retune both settings when changing models. Keep exclusions dominant, original descriptions authoritative, and article text untrusted. Verify the shared paths for scheduled delivery, `/news`, `/summary`, and the feed tool. Failed or unresolved decisions must remain uncached.
 

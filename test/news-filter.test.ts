@@ -12,15 +12,15 @@ import {
   filterHarness,
   preference,
   structuredModel,
+  type DecisionRequest,
 } from './news-filter-helpers.js'
 
 test.each([
-  { matchesInterest: true, excluded: true, score: 100, expected: false },
-  { matchesInterest: false, excluded: false, score: 100, expected: false },
-  { matchesInterest: true, excluded: false, score: 79, expected: false },
-  { matchesInterest: true, excluded: false, score: 80, expected: true },
+  { eligible: false, score: 100, expected: false },
+  { eligible: true, score: 79, expected: false },
+  { eligible: true, score: 80, expected: true },
 ])(
-  'enforces match, exclusion, and threshold gates: %j',
+  'enforces eligibility and threshold gates: %j',
   async ({ expected, ...decision }) => {
     // Given
     const { detector } = filterHarness(() => ({ ...decision, reason: 'test' }))
@@ -68,9 +68,9 @@ test('reset restores configured defaults instead of old custom topics', async ()
   expect(current.instruction).toBe((await preferences.resolve('b')).instruction)
 })
 
-test('caches the exclusion decision even when its score is high', async () => {
+test('caches the ineligible decision even when its score is high', async () => {
   // Given
-  const respond = vi.fn(() => ({ ...acceptedDecision, excluded: true }))
+  const respond = vi.fn(() => ({ ...acceptedDecision, eligible: false }))
   const { filter, preferences } = filterHarness(respond)
   const context = { chatId: 'a', filter: await preferences.resolve('a') }
   const item = article()
@@ -78,7 +78,11 @@ test('caches the exclusion decision even when its score is high', async () => {
   // When
   const cached = await filter.evaluate(context, item)
   // Then
-  expect(cached).toMatchObject({ score: 95, excluded: true, isRelevant: false })
+  expect(cached).toMatchObject({
+    score: 95,
+    eligible: false,
+    isRelevant: false,
+  })
   expect(respond).toHaveBeenCalledTimes(1)
 })
 
@@ -124,6 +128,31 @@ test('invalidates cached decisions when scoring configuration changes', async ()
   const result = await changed.evaluate(context, item)
   // Then
   expect(result?.isRelevant).toBe(false)
+  expect(respond).toHaveBeenCalledTimes(2)
+})
+
+test('reevaluates a changed description while reusing decisions for unused article bodies', async () => {
+  // Given
+  const respond = vi.fn((request: DecisionRequest) => ({
+    ...acceptedDecision,
+    eligible: request.state.article.description === 'qualifying-description',
+  }))
+  const { filter, preferences } = filterHarness(respond)
+  const context = { chatId: 'a', filter: await preferences.resolve('a') }
+  const item = article()
+  await filter.evaluate(context, item)
+  // When
+  const changed = await filter.evaluate(context, {
+    ...item,
+    description: 'qualifying-description',
+  })
+  const cached = await filter.evaluate(context, {
+    ...item,
+    description: 'qualifying-description',
+    content: 'changed unused body',
+  })
+  // Then
+  expect([changed?.isRelevant, cached?.isRelevant]).toEqual([true, true])
   expect(respond).toHaveBeenCalledTimes(2)
 })
 

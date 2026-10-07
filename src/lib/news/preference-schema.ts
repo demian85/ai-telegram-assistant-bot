@@ -57,18 +57,21 @@ export type NewsFilter = {
 }
 
 export function renderCriteria(criteria: NewsCriteria): string {
+  const compact = (rules: NewsCriteria['interests'], prefix?: RegExp): string =>
+    [
+      ...new Set(
+        rules.map((item) =>
+          (prefix ? item.rule.replace(prefix, '') : item.rule).trim()
+        )
+      ),
+    ].join('; ')
   return [
-    'Include substantive coverage of at least one interest:',
-    ...criteria.interests.map((item) => `- ${item.rule}`),
+    `Include substantive coverage of any: ${compact(criteria.interests, /^Select articles substantively covering\s+/i)}`,
     ...(criteria.exclusions.length
-      ? ['Exclude:', ...criteria.exclusions.map((item) => `- ${item.rule}`)]
+      ? [`Exclude: ${compact(criteria.exclusions, /^Exclude\s+/i)}`]
       : []),
     ...(criteria.titleRules.length
-      ? [
-          'Title requirements:',
-          ...criteria.titleRules.map((item) => `- ${item.rule}`),
-        ]
+      ? [`Title requirements: ${compact(criteria.titleRules)}`]
       : []),
-    'Original preferences are authoritative. Explicit exclusions override matches; reject uncertain matches.',
   ].join('\n')
 }

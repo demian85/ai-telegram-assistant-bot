@@ -7,10 +7,8 @@ import type { NewsFilter } from './preferences.js'
 import { createRelevanceQuestions } from './relevance-questions.js'
 
 export const relevanceDecisionSchema = z.object({
-  matchesInterest: z.boolean(),
-  excluded: z.boolean(),
-  titleRulesSatisfied: z.boolean(),
-  score: z.number().int().min(0).max(100),
+  eligible: z.boolean(),
+  score: z.number().min(0).max(100),
   reason: z.string().max(2000),
 })
 export type RelevanceDecision = z.infer<typeof relevanceDecisionSchema>
@@ -37,7 +35,7 @@ export class RelevanceDetector {
       .update(
         JSON.stringify([
           model.model,
-          'venice-decisions-v1',
+          'venice-decisions-v2-title-description',
           model.baseUrl,
           config.relevanceThreshold,
           this.minimumConfidence,
@@ -51,57 +49,27 @@ export class RelevanceDetector {
     return {
       ...decision,
       isRelevant:
-        decision.matchesInterest &&
-        !decision.excluded &&
-        decision.titleRulesSatisfied &&
-        decision.score >= this.config.relevanceThreshold,
+        decision.eligible && decision.score >= this.config.relevanceThreshold,
     }
   }
 
   async detectRelevance(
     item: NewsItem,
-    filter: Pick<NewsFilter, 'description' | 'instruction'>
+    filter: Pick<NewsFilter, 'description'>
   ): Promise<RelevanceResult | null> {
     try {
       const { answers, model, usage } = await this.model.invoke(
         {
-          preferences: {
-            original: filter.description,
-            compiled: filter.instruction,
-          },
+          preferences: filter.description,
           article: {
             title: item.title.slice(0, 1000),
             description: item.description?.slice(0, 3000),
-            content: item.content?.slice(0, 8000),
           },
         },
         this.questions
       )
-      const confidence = Math.min(
-        answers.interest.confidence,
-        answers.exclusion.confidence,
-        answers.title.confidence
-      )
-      const rejection = [
-        {
-          applies: answers.exclusion.choice === 'yes',
-          confidence: answers.exclusion.confidence,
-          reason: 'Explicit exclusion applies',
-        },
-        {
-          applies: answers.title.choice === 'no',
-          confidence: answers.title.confidence,
-          reason: 'Title requirements are not satisfied',
-        },
-        {
-          applies: answers.interest.choice === 'no',
-          confidence: answers.interest.confidence,
-          reason: 'No substantive interest match in the available text',
-        },
-      ].find(
-        (gate) => gate.applies && gate.confidence >= this.minimumConfidence
-      )
-      if (!rejection && confidence < this.minimumConfidence) {
+      const confidence = answers.eligibility.confidence
+      if (confidence < this.minimumConfidence) {
         logger.info(
           {
             event: 'news.decision.uncertain',
@@ -114,13 +82,12 @@ export class RelevanceDetector {
         return null
       }
       const decision = {
-        matchesInterest: answers.interest.choice === 'yes',
-        excluded: answers.exclusion.choice === 'yes',
-        titleRulesSatisfied: answers.title.choice === 'yes',
-        score: Math.round(answers.relevance.score * 20),
+        eligible: answers.eligibility.choice === 'yes',
+        score: answers.relevance.score * 20,
         reason:
-          rejection?.reason ??
-          'Substantive interest match; relevance determined by coverage rubric',
+          answers.eligibility.choice === 'yes'
+            ? 'Preferences satisfied; coverage determines relevance'
+            : 'Article does not satisfy the saved preferences',
       }
       logger.debug(
         {

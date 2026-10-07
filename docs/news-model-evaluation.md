@@ -24,7 +24,7 @@ Inspect the returned model identity as well as the requested model name. A serve
 
 ## Compare native Clef without new Jev requests
 
-`scripts/compare-clef-news.ts` reuses the recorded Jev/Laya answers and evaluates only `ggml-org/Clef-Flash-Q4_K_M`. It freezes the saved supplementary prompt and thresholds as well as the preferences and articles. It verifies discovery and response model identities, and checks each outgoing state and question object against the recorded Jev request. Changed question-builder code can therefore cause replay to stop with an input-mismatch error.
+`scripts/compare-clef-news.ts` reuses recorded Jev/Laya answers and evaluates only `ggml-org/Clef-Flash-Q4_K_M`. It freezes the saved supplementary prompt and thresholds as well as the preferences and articles. It verifies discovery and response model identities, and checks each outgoing state and question object against the recorded Jev request. Changed question-builder code can therefore cause replay to stop with an input-mismatch error. The committed October 7 baseline uses the previous four-question contract; it remains historical evidence, but is not accepted by the new eligibility/coverage response parser. Record a new baseline with `compare-news-models.ts` before running Clef against the new contract. The old baseline is rejected before contacting a provider.
 
 Clef's GGUF is a native decision model, not a text-generating chat model. Its [model card](https://huggingface.co/ggml-org/Clef-Flash-GGUF) specifies `/v1/systemone`. Atomic Chat 2.1.8 advertised the downloaded Clef model under its regular chat provider during the recorded run, but chat completions failed and its decision endpoint still returned Laya. Use a native Clef-capable server and inspect the actual returned model identity.
 
@@ -43,7 +43,7 @@ The [b11463 server documentation](https://github.com/ggml-org/llama.cpp/blob/b11
 
 ```bash
 node --import tsx scripts/compare-clef-news.ts \
-  --input artifacts/news-model-comparison-2026-10-07.json \
+  --input artifacts/news-model-comparison-replay.json \
   --output artifacts/clef-news-comparison-replay.json \
   --base-url http://127.0.0.1:3785/v1
 ```
