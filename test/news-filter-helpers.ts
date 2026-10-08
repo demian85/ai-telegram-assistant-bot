@@ -74,10 +74,14 @@ export const decisionRequestSchema = z.object({
     })
     .strict(),
   questions: z.record(
+    z.string(),
     z.object({
       type: z.enum(['choice', 'score']),
       instructions: z.string(),
-      criteria: z.union([z.record(z.string()), z.array(z.string())]),
+      criteria: z.union([
+        z.record(z.string(), z.string()),
+        z.array(z.string()),
+      ]),
     })
   ),
 })

@@ -1,45 +1,15 @@
-import type { NewsRelevanceRoleConfig } from './news-decision-config.js'
+import type { z } from 'zod'
+import type {
+  appConfigSchema,
+  telegramConfigSchema,
+  newsConfigSchema,
+  llmRoleConfigSchema,
+  llmConfigSchema,
+} from './schema.js'
 
-export type LlmRole =
-  | 'chat'
-  | 'summarizer'
-  | 'newsRelevance'
-  | 'newsPreferences'
-
-export interface TelegramConfig {
-  botUsername: string
-  whitelistedUsers: string[]
-}
-
-export interface NewsAppConfig {
-  readonly decisionModel?: string
-  readonly decisionConfidenceThreshold?: number
-  feeds: string[]
-  pollIntervalMinutes: number
-  deliveryCheckIntervalSeconds: number
-  relevanceThreshold: number
-  maxArticlesPerPoll: number
-  defaultFilter: string
-}
-
-export interface LlmRoleConfig {
-  model: string
-  supportsVision: boolean
-  supportsWebSearch?: boolean
-  systemPrompt: string
-}
-
-export interface LlmConfig {
-  apiKeyEnvVar: string
-  baseUrl: string
-  readonly defaultModel?: string
-  roles: Record<Exclude<LlmRole, 'newsRelevance'>, LlmRoleConfig> & {
-    readonly newsRelevance: NewsRelevanceRoleConfig
-  }
-}
-
-export interface AppConfig {
-  telegram: TelegramConfig
-  news: NewsAppConfig
-  llm: LlmConfig
-}
+export type AppConfig = z.infer<typeof appConfigSchema>
+export type TelegramConfig = z.infer<typeof telegramConfigSchema>
+export type NewsAppConfig = z.infer<typeof newsConfigSchema>
+export type LlmRoleConfig = z.infer<typeof llmRoleConfigSchema>
+export type LlmConfig = z.infer<typeof llmConfigSchema>
+export type LlmRole = keyof LlmConfig['roles']

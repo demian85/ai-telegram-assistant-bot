@@ -61,75 +61,56 @@ test('loads complete modern overrides without obsolete model and capability prop
   })
 })
 
-test('uses the summarizer for preference fallback when both legacy and explicit preference models are absent', () => {
-  // Given
-  const { rootDir, config } = configuration()
-  const { newsPreferences: _preferences, ...roles } = config.llm.roles
-  writeFileSync(
-    path.join(rootDir, 'config.defaults.json'),
-    JSON.stringify({
-      ...config,
-      llm: {
-        ...config.llm,
-        roles: {
-          ...roles,
-          summarizer: {
-            ...roles.summarizer,
-            model: 'summarizer-fallback-model',
-          },
-        },
-      },
-    })
-  )
-  // When
-  const resolved = loadAppConfig({ rootDir })
-  // Then
-  expect(resolved.llm.roles.newsPreferences).toMatchObject({
-    model: 'summarizer-fallback-model',
-    supportsVision: false,
-    supportsWebSearch: false,
-  })
-  expect(resolved.llm.roles.newsPreferences.model).not.toBe(
-    resolved.news.decisionModel
-  )
-})
+test.each(['defaults', 'override'])(
+  'requires an explicit preference role in %s config',
+  (source) => {
+    // Given
+    const { rootDir, config } = configuration()
+    const { newsPreferences: _preferences, ...roles } = config.llm.roles
+    if (source === 'defaults') {
+      writeFileSync(path.join(rootDir, 'config.json'), JSON.stringify(config))
+    }
+    writeFileSync(
+      path.join(
+        rootDir,
+        source === 'defaults' ? 'config.defaults.json' : 'config.json'
+      ),
+      JSON.stringify({ ...config, llm: { ...config.llm, roles } })
+    )
+    // When
+    const load = () => loadAppConfig({ rootDir })
+    // Then
+    expect(load).toThrow(
+      expect.objectContaining({
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            code: 'invalid_type',
+            path: ['llm', 'roles', 'newsPreferences'],
+          }),
+        ]),
+      })
+    )
+  }
+)
 
-test('reports text-only decision capabilities even for legacy role flags', () => {
+test('reports text-only decision capabilities', () => {
   // Given
   const { config } = configuration()
-  const legacy = {
-    ...config,
-    llm: {
-      ...config.llm,
-      roles: {
-        ...config.llm.roles,
-        newsRelevance: {
-          systemPrompt: 'legacy-prompt',
-          model: 'old-chat-model',
-          supportsVision: true,
-          supportsWebSearch: true,
-        },
-      },
-    },
-  }
   // When
   const capabilities = {
-    vision: llmSupportsVision('newsRelevance', legacy),
-    webSearch: llmSupportsWebSearch('newsRelevance', legacy),
+    vision: llmSupportsVision('newsRelevance', config),
+    webSearch: llmSupportsWebSearch('newsRelevance', config),
   }
   // Then
   expect(capabilities).toEqual({ vision: false, webSearch: false })
-  expect(llmSupportsVision('chat', legacy)).toBe(
-    config.llm.roles.chat.supportsVision
-  )
 })
 
 test.each([
-  { model: 42 },
-  { supportsVision: 'yes' },
-  { supportsWebSearch: 'yes' },
+  { model: 'old-chat-model' },
+  { supportsVision: true },
+  { supportsWebSearch: false },
 ])(
-  'rejects malformed legacy decision role properties when provided: %j',
+  'rejects retired decision role properties even with valid values: %j',
   (legacy) => {
     // Given
     const { rootDir, config } = configuration()
@@ -150,5 +131,64 @@ test.each([
     const load = () => loadAppConfig({ rootDir })
     // Then
     expect(load).toThrow()
+  }
+)
+
+test.each(['defaults', 'override'])(
+  'rejects the retired default LLM model in %s config',
+  (source) => {
+    // Given
+    const { rootDir, config } = configuration()
+    const filename =
+      source === 'defaults' ? 'config.defaults.json' : 'config.json'
+    writeFileSync(
+      path.join(rootDir, filename),
+      JSON.stringify({
+        ...config,
+        llm: { ...config.llm, defaultModel: 'old-model' },
+      })
+    )
+    // When
+    const load = () => loadAppConfig({ rootDir })
+    // Then
+    expect(load).toThrow(
+      expect.objectContaining({
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            code: 'unrecognized_keys',
+            path: ['llm'],
+            keys: ['defaultModel'],
+          }),
+        ]),
+      })
+    )
+  }
+)
+
+test.each(['defaults', 'override'])(
+  'rejects retired news topics in %s config',
+  (source) => {
+    // Given
+    const { rootDir, config } = configuration()
+    const filename =
+      source === 'defaults' ? 'config.defaults.json' : 'config.json'
+    writeFileSync(
+      path.join(rootDir, filename),
+      JSON.stringify({ ...config, news: { ...config.news, topics: ['AI'] } })
+    )
+    // When
+    const load = () => loadAppConfig({ rootDir })
+    // Then
+    expect(load).toThrow(
+      expect.objectContaining({
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            code: 'unrecognized_keys',
+            path: ['news'],
+            keys: ['topics'],
+          }),
+        ]),
+      })
+    )
   }
 )

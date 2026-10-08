@@ -22,8 +22,8 @@ Offline Vitest behavior coverage with injected service doubles and a real agent/
 | Retry ceilings, persisted cooldowns, concurrent evaluation sharing     | `news-filter-retries.test.ts`                           |
 | Schedule reconciliation, startup failure, delivery log levels          | `news-scheduler.test.ts`                                |
 | Decision HTTP contract, retries, eligibility and unrounded coverage    | `news-decisions.test.ts`                                |
-| Configurable decision models and generative-role compatibility         | `news-decision-config.test.ts`                          |
-| Modern config cleanup, legacy inputs and preference-model fallback     | `config-modern.test.ts`                                 |
+| Independent decision and generative models                             | `news-decision-config.test.ts`                          |
+| Modern config, retired-field rejection and required preference role    | `config-modern.test.ts`                                 |
 
 ## Harness conventions
 

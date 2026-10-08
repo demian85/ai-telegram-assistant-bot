@@ -33,13 +33,17 @@ function createDefaultsConfigJson() {
         deliveryCheckIntervalSeconds: 60,
         relevanceThreshold: 70,
         maxArticlesPerPoll: 10,
-        topics: ['ai', 'llms'],
+        defaultFilter: 'AI and LLMs',
       },
       llm: {
         apiKeyEnvVar: 'LLM_API_KEY',
         baseUrl: 'https://llm.test/api',
-        defaultModel: 'baseline-model',
         roles: {
+          newsPreferences: {
+            model: 'preference-default',
+            supportsVision: false,
+            systemPrompt: 'preference prompt',
+          },
           chat: {
             model: 'chat-default',
             supportsVision: false,
@@ -51,8 +55,6 @@ function createDefaultsConfigJson() {
             systemPrompt: 'summarizer default prompt',
           },
           newsRelevance: {
-            model: 'news-default',
-            supportsVision: true,
             systemPrompt: 'news default prompt',
           },
         },
@@ -79,13 +81,17 @@ test('loadAppConfig deep-merges objects while replacing arrays and scalars', () 
             deliveryCheckIntervalSeconds: 60,
             relevanceThreshold: 85,
             maxArticlesPerPoll: 10,
-            topics: ['agents'],
+            defaultFilter: 'Agents',
           },
           llm: {
             apiKeyEnvVar: 'LLM_API_KEY',
             baseUrl: 'https://override.test/api',
-            defaultModel: 'baseline-model',
             roles: {
+              newsPreferences: {
+                model: 'preference-default',
+                supportsVision: false,
+                systemPrompt: 'preference prompt',
+              },
               chat: {
                 model: 'chat-default',
                 supportsVision: false,
@@ -97,8 +103,6 @@ test('loadAppConfig deep-merges objects while replacing arrays and scalars', () 
                 systemPrompt: 'summarizer default prompt',
               },
               newsRelevance: {
-                model: 'news-default',
-                supportsVision: true,
                 systemPrompt: 'news default prompt',
               },
             },
@@ -121,18 +125,16 @@ test('loadAppConfig deep-merges objects while replacing arrays and scalars', () 
         deliveryCheckIntervalSeconds: 60,
         relevanceThreshold: 85,
         maxArticlesPerPoll: 10,
-        defaultFilter: expect.any(String),
+        defaultFilter: 'Agents',
       })
       expect(config.llm).toEqual({
         apiKeyEnvVar: 'LLM_API_KEY',
         baseUrl: 'https://override.test/api',
-        defaultModel: 'baseline-model',
         roles: {
           newsPreferences: {
-            model: 'news-default',
+            model: 'preference-default',
             supportsVision: false,
-            supportsWebSearch: false,
-            systemPrompt: expect.any(String),
+            systemPrompt: 'preference prompt',
           },
           chat: {
             model: 'chat-default',
@@ -145,8 +147,6 @@ test('loadAppConfig deep-merges objects while replacing arrays and scalars', () 
             systemPrompt: 'summarizer default prompt',
           },
           newsRelevance: {
-            model: 'news-default',
-            supportsVision: true,
             systemPrompt: 'news default prompt',
           },
         },
@@ -178,7 +178,16 @@ test('loadAppConfig rejects unknown top-level keys from config.json with file pa
     },
     (rootDir) => {
       expect(() => loadAppConfig({ rootDir })).toThrow(
-        /Unknown top-level config key "unexpected".*config\.json/
+        expect.objectContaining({
+          message: expect.stringContaining('config.json'),
+          issues: expect.arrayContaining([
+            expect.objectContaining({
+              code: 'unrecognized_keys',
+              path: [],
+              keys: ['unexpected'],
+            }),
+          ]),
+        })
       )
     }
   )

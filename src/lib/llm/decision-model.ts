@@ -1,4 +1,3 @@
-import 'openai/shims/web'
 import { OpenAI, type ClientOptions } from 'openai'
 import { z } from 'zod'
 
@@ -64,7 +63,7 @@ export class VeniceDecisionModel {
 
   async invoke(state: DecisionState, questions: DecisionQuestions) {
     const body = { model: this.model, state, questions }
-    const output = await this.client.post<typeof body, unknown>('/decisions', {
+    const output = await this.client.post<unknown>('/decisions', {
       body,
       signal: AbortSignal.timeout(60_000),
     })
