@@ -28,7 +28,7 @@
     "baseUrl": "https://api.venice.ai/api/v1",
     "roles": {
       "chat": {
-        "model": "grok-41-fast:enable_web_search=auto&enable_web_scraping=true",
+        "model": "grok-4-3:enable_web_search=auto&enable_web_scraping=true",
         "supportsVision": true,
         "supportsWebSearch": true,
         "systemPrompt": "You are a helpful Telegram assistant with access to AI and tech news feeds. Reply clearly, concisely, and naturally."
@@ -37,9 +37,6 @@
         "model": "qwen3-5-35b-a3b",
         "supportsVision": true,
         "systemPrompt": "Summarize conversations accurately and briefly. Keep key facts, decisions, and action items."
-      },
-      "newsRelevance": {
-        "systemPrompt": "Judge whether an article substantively matches the chat's news preferences. Be selective, honor exclusions, and reject uncertain or incidental matches."
       },
       "newsPreferences": {
         "model": "qwen3-5-35b-a3b",

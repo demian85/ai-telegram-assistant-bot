@@ -1,5 +1,8 @@
 import { expect, test, vi } from 'vitest'
-import { VeniceDecisionModel } from '../src/lib/llm/decision-model.js'
+import {
+  DecisionRateLimitError,
+  VeniceDecisionModel,
+} from '../src/lib/llm/decision-model.js'
 import { RelevanceDetector } from '../src/lib/news/relevance-detector.js'
 import { ChatNewsFilter } from '../src/lib/news/chat-news-filter.js'
 import {
@@ -237,6 +240,109 @@ test('withholds an authentication failure without attempting a chat-completion f
   // Then
   expect(result).toBeNull()
   expect(fetch).toHaveBeenCalledTimes(1)
+})
+
+test.each([
+  {
+    headers: { 'retry-after-ms': '75000', 'retry-after': '90' },
+    delay: 75_000,
+  },
+  { headers: { 'retry-after': '90' }, delay: 90_000 },
+  {
+    headers: { 'retry-after': 'Thu, 08 Oct 2026 12:02:00 GMT' },
+    delay: 120_000,
+  },
+  { headers: { 'retry-after-ms': '-1', 'retry-after': '90' }, delay: 90_000 },
+  { headers: {}, delay: 60_000 },
+  { headers: { 'retry-after-ms': '-1', 'retry-after': '-1' }, delay: 60_000 },
+  {
+    headers: { 'retry-after-ms': 'Infinity', 'retry-after': 'Infinity' },
+    delay: 60_000,
+  },
+  { headers: { 'retry-after': 'invalid-date' }, delay: 60_000 },
+  { headers: { 'retry-after-ms': '', 'retry-after': '' }, delay: 60_000 },
+  {
+    headers: { 'retry-after': 'Thu, 08 Oct 2026 11:59:00 GMT' },
+    delay: 60_000,
+  },
+  { headers: { 'retry-after': '1e309' }, delay: 60_000 },
+  { headers: { 'retry-after-ms': '0' }, delay: 0 },
+] satisfies readonly {
+  readonly headers: Record<string, string>
+  readonly delay: number
+}[])(
+  'propagates a typed rate limit after one default request with retry headers: $headers',
+  async ({ headers, delay }) => {
+    // Given
+    const clock = vi
+      .spyOn(Date, 'now')
+      .mockReturnValue(Date.parse('2026-10-08T12:00:00Z'))
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('{}', { status: 429, headers }))
+      .mockResolvedValue(
+        new Response(JSON.stringify(decisionResponse(acceptedDecision)), {
+          headers: { 'content-type': 'application/json' },
+        })
+      )
+    const detector = new RelevanceDetector(
+      new VeniceDecisionModel({
+        apiKey: 'offline-key',
+        baseURL: 'https://api.venice.ai/api/v1',
+        fetch,
+      }),
+      { relevanceThreshold: 80 }
+    )
+    try {
+      // When / Then
+      await expect(
+        detector.detectRelevance(article(), preference())
+      ).rejects.toEqual(
+        expect.objectContaining({
+          constructor: DecisionRateLimitError,
+          retryAfterMs: delay,
+        })
+      )
+      expect(fetch).toHaveBeenCalledTimes(1)
+    } finally {
+      clock.mockRestore()
+    }
+  }
+)
+
+test('shares the provider key across question and configuration versions', () => {
+  // Given
+  const createDetector = (
+    baseURL: string,
+    model: string,
+    relevanceThreshold: number
+  ) =>
+    new RelevanceDetector(
+      new VeniceDecisionModel({ apiKey: 'offline-key', baseURL, model }),
+      {
+        relevanceThreshold,
+      }
+    )
+  const original = createDetector(
+    'https://api.venice.ai/api/v1',
+    'jev-latest',
+    80
+  )
+  const changed = createDetector(
+    'https://api.venice.ai/api/v1',
+    'other-model',
+    90
+  )
+  const otherProvider = createDetector(
+    'https://other-provider.example/v1',
+    'jev-latest',
+    80
+  )
+  // When / Then
+  expect(original.providerKey).toMatch(/^[a-f0-9]{64}$/)
+  expect(changed.providerKey).toBe(original.providerKey)
+  expect(changed.cacheVersion).not.toBe(original.cacheVersion)
+  expect(otherProvider.providerKey).not.toBe(original.providerKey)
 })
 
 test('maps fractional rubric positions to coverage scores independently of confidence', async () => {

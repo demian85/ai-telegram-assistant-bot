@@ -73,7 +73,6 @@ async function main() {
   const detector = new RelevanceDetector(models.newsRelevance, {
     relevanceThreshold: config.news.relevanceThreshold,
     decisionConfidenceThreshold: config.news.decisionConfidenceThreshold,
-    systemPrompt: config.llm.roles.newsRelevance.systemPrompt,
   })
   process.stdout.write(
     JSON.stringify({
