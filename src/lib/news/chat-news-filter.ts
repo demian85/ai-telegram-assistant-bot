@@ -100,13 +100,16 @@ export class ChatNewsFilter {
       return null
     }
     const previous = this.evaluationTail
-    const { promise, resolve } = Promise.withResolvers<void>()
+    let releaseEvaluation!: () => void
+    const promise = new Promise<void>((resolve) => {
+      releaseEvaluation = resolve
+    })
     this.evaluationTail = promise
     await previous
     try {
       return await this.requestDecision(context, item, key, retry)
     } finally {
-      resolve()
+      releaseEvaluation()
     }
   }
 
