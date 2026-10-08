@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
-import { APIError, type VeniceDecisionModel } from '@lib/llm/decision-model.js'
+import {
+  APIError,
+  DecisionRateLimitError,
+  type VeniceDecisionModel,
+} from '@lib/llm/decision-model.js'
 import logger from '@lib/logger.js'
 import type { NewsConfig, NewsItem } from './types.js'
 import type { NewsFilter } from './preferences.js'
@@ -18,6 +22,7 @@ export type RelevanceResult = RelevanceDecision & {
 
 export class RelevanceDetector {
   readonly cacheVersion: string
+  readonly providerKey: string
   private readonly minimumConfidence: number
   constructor(
     private readonly model: VeniceDecisionModel,
@@ -27,6 +32,7 @@ export class RelevanceDetector {
     >
   ) {
     this.minimumConfidence = config.decisionConfidenceThreshold ?? 0.8
+    this.providerKey = createHash('sha256').update(model.baseUrl).digest('hex')
     this.cacheVersion = createHash('sha256')
       .update(
         JSON.stringify([
@@ -97,6 +103,7 @@ export class RelevanceDetector {
       )
       return this.result(decision)
     } catch (error) {
+      if (error instanceof DecisionRateLimitError) throw error
       logger.error(
         {
           event: 'news.score.error',

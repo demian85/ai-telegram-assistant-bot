@@ -4,6 +4,7 @@ import { FeedReader } from './feed-reader.js'
 import { NewsStore } from './news-store.js'
 import type { ChatNewsFilter } from './chat-news-filter.js'
 import logger from '@lib/logger.js'
+import { NewsEvaluationBudget } from './evaluation-budget.js'
 
 export type RecentNewsItem = Omit<NewsItem, 'feedUrl'>
 
@@ -77,7 +78,11 @@ export class NewsQueryService {
   ): Promise<RecentNewsItem[]> {
     const { filter } = this.config
     const preference = await filter.preferences.resolve(request.chatId)
-    const context = { chatId: request.chatId, filter: preference }
+    const context = {
+      chatId: request.chatId,
+      filter: preference,
+      budget: new NewsEvaluationBudget(50),
+    }
     const selected: RecentNewsItem[] = []
     const limit = Math.max(1, Math.min(10, request.limit))
     for (const item of items) {
