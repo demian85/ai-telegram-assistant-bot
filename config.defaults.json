@@ -28,7 +28,7 @@
     "baseUrl": "https://api.venice.ai/api/v1",
     "roles": {
       "chat": {
-        "model": "grok-41-fast:enable_web_search=auto&enable_web_scraping=true",
+        "model": "grok-4-3:enable_web_search=auto&enable_web_scraping=true",
         "supportsVision": true,
         "supportsWebSearch": true,
         "systemPrompt": "You are a helpful Telegram assistant with access to AI and tech news feeds. Reply clearly, concisely, and naturally."
