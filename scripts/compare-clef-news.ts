@@ -22,7 +22,6 @@ const baselineSchema = z.object({
   settings: z.object({
     coverageThreshold: z.number(),
     confidenceThreshold: z.number(),
-    systemPrompt: z.string(),
   }),
   articles: z
     .array(
@@ -135,7 +134,6 @@ async function main() {
   const detector = new RelevanceDetector(client, {
     relevanceThreshold: baseline.settings.coverageThreshold,
     decisionConfidenceThreshold: baseline.settings.confidenceThreshold,
-    systemPrompt: baseline.settings.systemPrompt,
   })
   const rows: {
     readonly title: string

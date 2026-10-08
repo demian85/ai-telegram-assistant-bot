@@ -39,9 +39,6 @@ const validDefaultsConfig = {
         supportsVision: true,
         systemPrompt: 'Summarize this',
       },
-      newsRelevance: {
-        systemPrompt: 'Judge relevance',
-      },
       newsPreferences: {
         model: 'preference-model',
         supportsVision: false,
@@ -123,9 +120,6 @@ describe('loadAppConfig', () => {
       )
       const config = loadAppConfig({ rootDir: tempDir })
       expect(config.llm.roles.newsPreferences.model).toBe('preference-override')
-      expect(config.llm.roles.newsRelevance).toEqual(
-        validDefaultsConfig.llm.roles.newsRelevance
-      )
     } finally {
       cleanupTempDir(tempDir)
     }

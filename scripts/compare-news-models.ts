@@ -183,7 +183,6 @@ async function main() {
     return new RelevanceDetector(model, {
       relevanceThreshold: config.news.relevanceThreshold,
       decisionConfidenceThreshold: config.news.decisionConfidenceThreshold,
-      systemPrompt: config.llm.roles.newsRelevance.systemPrompt,
     })
   }
   const jev = createDetector(false)
@@ -226,7 +225,6 @@ async function main() {
       layaModel: 'laya-multilingual',
       coverageThreshold: config.news.relevanceThreshold,
       confidenceThreshold: config.news.decisionConfidenceThreshold ?? 0.8,
-      systemPrompt: config.llm.roles.newsRelevance.systemPrompt,
     },
     rows,
   }

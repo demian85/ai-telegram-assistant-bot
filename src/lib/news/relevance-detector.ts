@@ -4,7 +4,7 @@ import { APIError, type VeniceDecisionModel } from '@lib/llm/decision-model.js'
 import logger from '@lib/logger.js'
 import type { NewsConfig, NewsItem } from './types.js'
 import type { NewsFilter } from './preferences.js'
-import { createRelevanceQuestions } from './relevance-questions.js'
+import { relevanceQuestions } from './relevance-questions.js'
 
 export const relevanceDecisionSchema = z.object({
   eligible: z.boolean(),
@@ -18,18 +18,14 @@ export type RelevanceResult = RelevanceDecision & {
 
 export class RelevanceDetector {
   readonly cacheVersion: string
-  private readonly questions
   private readonly minimumConfidence: number
   constructor(
     private readonly model: VeniceDecisionModel,
     private readonly config: Pick<
       NewsConfig,
       'relevanceThreshold' | 'decisionConfidenceThreshold'
-    > & {
-      readonly systemPrompt?: string
-    }
+    >
   ) {
-    this.questions = createRelevanceQuestions(config.systemPrompt)
     this.minimumConfidence = config.decisionConfidenceThreshold ?? 0.8
     this.cacheVersion = createHash('sha256')
       .update(
@@ -39,7 +35,7 @@ export class RelevanceDetector {
           model.baseUrl,
           config.relevanceThreshold,
           this.minimumConfidence,
-          this.questions,
+          relevanceQuestions,
         ])
       )
       .digest('hex')
@@ -66,7 +62,7 @@ export class RelevanceDetector {
             description: item.description?.slice(0, 3000),
           },
         },
-        this.questions
+        relevanceQuestions
       )
       const confidence = answers.eligibility.confidence
       if (confidence < this.minimumConfidence) {

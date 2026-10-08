@@ -121,7 +121,6 @@ test('invalidates cached decisions when scoring configuration changes', async ()
     preferences,
     new RelevanceDetector(model, {
       relevanceThreshold: 99,
-      systemPrompt: 'changed-role',
     })
   )
   // When

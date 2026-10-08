@@ -23,17 +23,12 @@ export const llmRoleConfigSchema = z.strictObject({
   systemPrompt: z.string(),
 })
 
-export const newsRelevanceRoleSchema = z.strictObject({
-  systemPrompt: z.string(),
-})
-
 export const llmConfigSchema = z.strictObject({
   apiKeyEnvVar: z.string(),
   baseUrl: z.string(),
   roles: z.strictObject({
     chat: llmRoleConfigSchema,
     summarizer: llmRoleConfigSchema,
-    newsRelevance: newsRelevanceRoleSchema,
     newsPreferences: llmRoleConfigSchema,
   }),
 })

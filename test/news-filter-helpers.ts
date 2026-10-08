@@ -183,7 +183,6 @@ export function filterHarness(
   const preferences = new NewsPreferenceStore(redis.asRedis(), 'default-topic')
   const detector = new RelevanceDetector(model, {
     relevanceThreshold: 80,
-    systemPrompt: 'scoring-role',
   })
   const filter = new ChatNewsFilter(redis.asRedis(), preferences, detector)
   return { redis, model, preferences, detector, filter }

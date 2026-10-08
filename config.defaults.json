@@ -38,9 +38,6 @@
         "supportsVision": true,
         "systemPrompt": "Summarize conversations accurately and briefly. Keep key facts, decisions, and action items."
       },
-      "newsRelevance": {
-        "systemPrompt": "Judge whether an article substantively matches the chat's news preferences. Be selective, honor exclusions, and reject uncertain or incidental matches."
-      },
       "newsPreferences": {
         "model": "qwen3-5-35b-a3b",
         "supportsVision": false,

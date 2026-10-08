@@ -139,12 +139,11 @@ Important config areas:
 - `llm.apiKeyEnvVar` - env var holding the provider API key
 - `llm.baseUrl` - shared provider API base URL for generative and decision requests; the suggested Venice URL is `https://api.venice.ai/api/v1`
 - `llm.roles.newsPreferences` - model and system prompt that convert user descriptions into filtering instructions
-- `llm.roles.newsRelevance.systemPrompt` - supplementary instructions supplied to each news decision question
 - `llm.roles.chat` and `llm.roles.summarizer` - conversational and memory models
 
-Preference generation and news decisions share `llm.baseUrl` and the API key. Set `llm.roles.newsPreferences.model` to a generative model that supports structured JSON output, and select the article evaluator with `news.decisionModel`. The `llm.roles.newsRelevance` object accepts only `systemPrompt`. Its instructions supplement both the eligibility Choice and the coverage Score questions and contribute to the decision cache fingerprint. The decision model receives your original preferences once, alongside the article title and description; compiled criteria remain available for inspection.
+Preference generation and news decisions share `llm.baseUrl` and the API key. Set `llm.roles.newsPreferences.model` to a generative model that supports structured JSON output, and select the article evaluator with `news.decisionModel`. Eligibility instructions and coverage criteria are defined in application code and contribute to the decision cache fingerprint. The decision model receives your original preferences once, alongside the article title and description; compiled criteria remain available for inspection.
 
-All four roles must be explicitly configured in defaults and in any nonempty override. The loader validates a nonempty override as a full config before merging: a file containing only one role is not sufficient. Retired relevance `model`, `supportsVision`, and `supportsWebSearch` properties, `llm.defaultModel`, and `news.topics` are rejected. Configure default preferences with `news.defaultFilter`.
+All three generative roles must be explicitly configured in defaults and in any nonempty override. The loader validates a nonempty override as a full config before merging: a file containing only one role is not sufficient. The removed `llm.roles.newsRelevance` entry, `llm.defaultModel`, and `news.topics` are rejected. Configure default preferences with `news.defaultFilter`.
 
 The current adapter requires `POST /decisions` with the typed Choice and Score request/response contract described in [News decision model setup](docs/news-decision-models.md). The shared provider must also support OpenAI-compatible chat completions for the generative roles. Providers with a different decision API need an adapter; a chat-completion model alone is not a drop-in replacement. See [Choosing a news decision model](docs/news-model-selection.md) for selection criteria.
 

@@ -3,10 +3,6 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { loadAppConfig } from '../src/lib/config/load-config.js'
-import {
-  llmSupportsVision,
-  llmSupportsWebSearch,
-} from '../src/lib/llm/model.js'
 
 const directories: string[] = []
 afterEach(() => {
@@ -41,7 +37,6 @@ test('loads complete modern overrides without obsolete model and capability prop
         roles: {
           ...config.llm.roles,
           chat: { ...config.llm.roles.chat, model: 'custom-chat-model' },
-          newsRelevance: { systemPrompt: 'custom-decision-instructions' },
         },
       },
     })
@@ -50,9 +45,7 @@ test('loads complete modern overrides without obsolete model and capability prop
   const resolved = loadAppConfig({ rootDir })
   // Then
   expect(resolved.llm).not.toHaveProperty('defaultModel')
-  expect(resolved.llm.roles.newsRelevance).toEqual({
-    systemPrompt: 'custom-decision-instructions',
-  })
+  expect(resolved.llm.roles).not.toHaveProperty('newsRelevance')
   expect(resolved.llm.roles.chat.model).toBe('custom-chat-model')
   expect(resolved.news).toMatchObject({
     relevanceThreshold: 75,
@@ -93,44 +86,37 @@ test.each(['defaults', 'override'])(
   }
 )
 
-test('reports text-only decision capabilities', () => {
-  // Given
-  const { config } = configuration()
-  // When
-  const capabilities = {
-    vision: llmSupportsVision('newsRelevance', config),
-    webSearch: llmSupportsWebSearch('newsRelevance', config),
-  }
-  // Then
-  expect(capabilities).toEqual({ vision: false, webSearch: false })
-})
-
-test.each([
-  { model: 'old-chat-model' },
-  { supportsVision: true },
-  { supportsWebSearch: false },
-])(
-  'rejects retired decision role properties even with valid values: %j',
-  (legacy) => {
-    // Given
+test.each(['defaults', 'override'])(
+  'rejects the removed news relevance config role in %s config',
+  (source) => {
     const { rootDir, config } = configuration()
+    const filename =
+      source === 'defaults' ? 'config.defaults.json' : 'config.json'
     writeFileSync(
-      path.join(rootDir, 'config.json'),
+      path.join(rootDir, filename),
       JSON.stringify({
         ...config,
         llm: {
           ...config.llm,
           roles: {
             ...config.llm.roles,
-            newsRelevance: { systemPrompt: 'legacy-prompt', ...legacy },
+            newsRelevance: { systemPrompt: 'retired-prompt' },
           },
         },
       })
     )
-    // When
     const load = () => loadAppConfig({ rootDir })
-    // Then
-    expect(load).toThrow()
+    expect(load).toThrow(
+      expect.objectContaining({
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            code: 'unrecognized_keys',
+            path: ['llm', 'roles'],
+            keys: ['newsRelevance'],
+          }),
+        ]),
+      })
+    )
   }
 )
 

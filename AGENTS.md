@@ -78,9 +78,9 @@ npm run build
 - TypeScript ESM imports use `.js` specifiers; `@lib/*` resolves through TypeScript and Vitest aliases.
 - `src/index.ts` composes shared services. Pass the same `ChatNewsFilter` instance to query and scheduler paths so decisions, retries, and concurrent evaluations agree.
 - Memory keys use normalized `private:<id>` or `group:<id>` scope; news subscriptions and Telegram sends use raw chat IDs.
-- Configured roles are `chat`, `summarizer`, `newsRelevance`, and `newsPreferences`. The three generative roles use `ChatOpenAI`; relevance uses `VeniceDecisionModel` with `news.decisionModel` and the same provider URL/key. Venice and `jev-latest` are defaults, not a restriction on providers implementing that decision contract.
-- Relevance config accepts only `systemPrompt`, which supplements both decision questions and contributes to their cache fingerprint. Retired relevance model/capability fields, `llm.defaultModel`, and `news.topics` are rejected. Defaults and nonempty overrides require all four roles, including an explicit `newsPreferences`; use `news.defaultFilter` for default preferences.
-- Bootstrap uses the chat, relevance, and preference role system prompts. The summarizer still constructs its prompt internally.
+- Configured generative roles are `chat`, `summarizer`, and `newsPreferences`. The three generative roles use `ChatOpenAI`; relevance uses `VeniceDecisionModel` with `news.decisionModel` and the same provider URL/key. Venice and `jev-latest` are defaults, not a restriction on providers implementing that decision contract.
+- Decision questions use built-in eligibility instructions and coverage criteria; there is no configurable relevance system prompt. The removed `llm.roles.newsRelevance` entry, `llm.defaultModel`, and `news.topics` are rejected. Defaults and nonempty overrides require all three generative roles, including an explicit `newsPreferences`; use `news.defaultFilter` for default preferences.
+- Bootstrap uses the chat and preference role system prompts. The summarizer still constructs its prompt internally.
 - Scheduled news, `/news`, `/summary`, and the feed tool share saved per-chat preferences. Relevance evaluates title and description together using original preferences once, one eligibility Choice and one coverage Score. Compiled criteria remain inspectable; exclusions override scores. Provider-native web search is outside this filter.
 
 ## Avoid

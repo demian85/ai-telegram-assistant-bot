@@ -54,9 +54,6 @@ function createDefaultsConfigJson() {
             supportsVision: true,
             systemPrompt: 'summarizer default prompt',
           },
-          newsRelevance: {
-            systemPrompt: 'news default prompt',
-          },
         },
       },
     },
@@ -102,9 +99,6 @@ test('loadAppConfig deep-merges objects while replacing arrays and scalars', () 
                 supportsVision: true,
                 systemPrompt: 'summarizer default prompt',
               },
-              newsRelevance: {
-                systemPrompt: 'news default prompt',
-              },
             },
           },
         },
@@ -145,9 +139,6 @@ test('loadAppConfig deep-merges objects while replacing arrays and scalars', () 
             model: 'summarizer-default',
             supportsVision: true,
             systemPrompt: 'summarizer default prompt',
-          },
-          newsRelevance: {
-            systemPrompt: 'news default prompt',
           },
         },
       })
