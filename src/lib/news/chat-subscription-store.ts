@@ -47,7 +47,7 @@ export class ChatSubscriptionStore {
   }
 
   async listEnabledSubscriptions(): Promise<NewsChatSubscription[]> {
-    const chatIds = await this.redis.smembers(this.indexKey)
+    const chatIds = (await this.redis.smembers(this.indexKey)).sort()
     const subscriptions: NewsChatSubscription[] = []
 
     for (const chatId of chatIds) {

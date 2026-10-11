@@ -32,49 +32,58 @@ async function backlog(count = 25) {
   return { ...harness, store, subscriptions, respond, evaluated }
 }
 
-test('limits fresh delivery decisions across chats while progressing through a cold backlog', async () => {
-  // Given a cold backlog larger than the cycle budget and two subscribed chats.
-  const harness = await backlog()
-  const scheduler = new NewsScheduler(
-    {
-      redis: harness.redis.asRedis(),
-      model: harness.model,
-      newsConfig: {
-        feeds: [],
-        pollIntervalMinutes: 15,
-        deliveryCheckIntervalSeconds: 300,
-        maxArticlesPerPoll: 5,
-        relevanceThreshold: 80,
-        defaultFilter: 'default-topic',
-      },
-    },
-    {
-      filter: harness.filter,
-      newsStore: harness.store,
-      chatSubscriptionStore: harness.subscriptions,
-      queue: createNoopQueue(),
-      worker: createNoopWorker(),
+test.each([false, true])(
+  'limits fresh delivery decisions across chats with reordered Redis results: %s',
+  async (reorder) => {
+    // Given a cold backlog larger than the cycle budget and two subscribed chats.
+    const harness = await backlog()
+    if (reorder) {
+      vi.spyOn(harness.redis, 'smembers')
+        .mockResolvedValueOnce(['a', 'b'])
+        .mockResolvedValueOnce(['b', 'a'])
+        .mockResolvedValueOnce(['a', 'b'])
     }
-  )
-  const send = vi.fn(async () => undefined)
+    const scheduler = new NewsScheduler(
+      {
+        redis: harness.redis.asRedis(),
+        model: harness.model,
+        newsConfig: {
+          feeds: [],
+          pollIntervalMinutes: 15,
+          deliveryCheckIntervalSeconds: 300,
+          maxArticlesPerPoll: 5,
+          relevanceThreshold: 80,
+          defaultFilter: 'default-topic',
+        },
+      },
+      {
+        filter: harness.filter,
+        newsStore: harness.store,
+        chatSubscriptionStore: harness.subscriptions,
+        queue: createNoopQueue(),
+        worker: createNoopWorker(),
+      }
+    )
+    const send = vi.fn(async () => undefined)
 
-  // When consecutive cycles evaluate the backlog without finding a match.
-  await scheduler['deliverRelevantArticles'](send)
-  expect(harness.respond).toHaveBeenCalledTimes(10)
-  await scheduler['deliverRelevantArticles'](send)
-  expect(
-    harness.respond.mock.calls
-      .slice(10)
-      .map(([request]) => request.state.preferences)
-  ).toEqual(Array.from({ length: 10 }, () => 'topic-b'))
-  expect(harness.respond).toHaveBeenCalledTimes(20)
-  await scheduler['deliverRelevantArticles'](send)
+    // When consecutive cycles evaluate the backlog without finding a match.
+    await scheduler['deliverRelevantArticles'](send)
+    expect(harness.respond).toHaveBeenCalledTimes(10)
+    await scheduler['deliverRelevantArticles'](send)
+    expect(
+      harness.respond.mock.calls
+        .slice(10)
+        .map(([request]) => request.state.preferences)
+    ).toEqual(Array.from({ length: 10 }, () => 'topic-b'))
+    expect(harness.respond).toHaveBeenCalledTimes(20)
+    await scheduler['deliverRelevantArticles'](send)
 
-  // Then both chats receive evaluations and cached rejections let later cycles advance.
-  expect(harness.respond).toHaveBeenCalledTimes(30)
-  expect(new Set(harness.evaluated).size).toBe(20)
-  expect(send).not.toHaveBeenCalled()
-})
+    // Then both chats receive evaluations and cached rejections let later cycles advance.
+    expect(harness.respond).toHaveBeenCalledTimes(30)
+    expect(new Set(harness.evaluated).size).toBe(20)
+    expect(send).not.toHaveBeenCalled()
+  }
+)
 
 test('bounds manual queries to fifty candidates and reuses cached decisions', async () => {
   // Given a manual query with more than fifty candidates and no matching decisions.
