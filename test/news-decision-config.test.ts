@@ -23,13 +23,13 @@ function configuration(news: Record<string, unknown>) {
   const {
     decisionModel: _model,
     decisionConfidenceThreshold: _confidence,
-    ...legacyNews
+    ...otherNews
   } = defaults.news
   writeFileSync(
     path.join(rootDir, 'config.json'),
     JSON.stringify({
       ...defaults,
-      news: { ...legacyNews, ...news },
+      news: { ...otherNews, ...news },
     })
   )
   return loadAppConfig({ rootDir })

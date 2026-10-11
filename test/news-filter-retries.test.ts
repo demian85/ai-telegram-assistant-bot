@@ -1,5 +1,7 @@
 import { expect, test, vi } from 'vitest'
 import { ChatNewsFilter } from '../src/lib/news/chat-news-filter.js'
+import { VeniceDecisionModel } from '../src/lib/llm/decision-model.js'
+import { RelevanceDetector } from '../src/lib/news/relevance-detector.js'
 import {
   acceptedDecision,
   article,
@@ -97,4 +99,90 @@ test('logs model requests separately from cached decisions', async () => {
       (record) => record.context.event === 'news.decision.cache_hit'
     )
   ).toMatchObject([{ level: 'debug' }])
+})
+
+test('shares provider cooldown across chats and reopened filters without spending article retries', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-08T00:00:00Z'))
+  try {
+    // Given a real decision transport that rate limits its first evaluation.
+    const fetch = vi.fn(
+      async () =>
+        new Response('{}', { status: 429, headers: { 'retry-after': '120' } })
+    )
+    const { redis, preferences } = filterHarness()
+    const detector = new RelevanceDetector(
+      new VeniceDecisionModel({
+        apiKey: 'offline-key',
+        baseURL: 'https://api.venice.ai/api/v1',
+        maxRetries: 0,
+        fetch,
+      }),
+      { relevanceThreshold: 80 }
+    )
+    const filter = new ChatNewsFilter(redis.asRedis(), preferences, detector)
+    const first = { chatId: 'a', filter: await preferences.resolve('a') }
+    const other = { chatId: 'b', filter: await preferences.resolve('b') }
+    await filter.evaluate(first, article('rate-limited'))
+    const reopened = new ChatNewsFilter(redis.asRedis(), preferences, detector)
+
+    // When another chat and a changed preference are evaluated during cooldown.
+    await reopened.evaluate(other, article('waiting'))
+    await preferences.save('a', preference('changed preference'))
+    await reopened.evaluate(
+      { chatId: 'a', filter: await preferences.resolve('a') },
+      article('changed')
+    )
+    vi.setSystemTime(new Date('2026-10-08T00:01:59Z'))
+    await reopened.evaluate(other, article('waiting'))
+    expect(fetch).toHaveBeenCalledTimes(1)
+    fetch.mockImplementation(
+      async () =>
+        new Response(JSON.stringify(decisionResponse(acceptedDecision)), {
+          headers: { 'content-type': 'application/json' },
+        })
+    )
+    vi.setSystemTime(new Date('2026-10-08T00:02:00Z'))
+    const { result, records } = await captureLoggerRecords(() =>
+      reopened.evaluate(other, article('waiting'))
+    )
+
+    // Then untouched articles resume immediately without inheriting a retry delay.
+    expect(result?.isRelevant).toBe(true)
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(
+      records.find((record) => record.context.event === 'news.decision.request')
+        ?.context.attempt
+    ).toBe(1)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+test('serializes different article evaluations so a 429 stops concurrent provider calls', async () => {
+  // Given two distinct articles submitted concurrently to the same provider.
+  const fetch = vi.fn(
+    async () =>
+      new Response('{}', { status: 429, headers: { 'retry-after': '60' } })
+  )
+  const { redis, preferences } = filterHarness()
+  const filter = new ChatNewsFilter(
+    redis.asRedis(),
+    preferences,
+    new RelevanceDetector(
+      new VeniceDecisionModel({ apiKey: 'offline-key', maxRetries: 0, fetch }),
+      { relevanceThreshold: 80 }
+    )
+  )
+  const context = { chatId: 'a', filter: await preferences.resolve('a') }
+
+  // When the first request is rate limited while the second is waiting.
+  const results = await Promise.all([
+    filter.evaluate(context, article('first')),
+    filter.evaluate(context, article('second')),
+  ])
+
+  // Then no request is issued for the second article.
+  expect(results).toEqual([null, null])
+  expect(fetch).toHaveBeenCalledTimes(1)
 })

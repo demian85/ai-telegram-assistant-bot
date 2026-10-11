@@ -10,6 +10,7 @@ import { NewsDeliveryStore } from './news-delivery-store.js'
 import type { VeniceDecisionModel } from '@lib/llm/decision-model.js'
 import logger from '@lib/logger.js'
 import { ChatNewsFilter } from './chat-news-filter.js'
+import { NewsEvaluationBudget } from './evaluation-budget.js'
 import { NewsPreferenceStore } from './preferences.js'
 import {
   clearNewsRepeatableJobs,
@@ -75,6 +76,7 @@ export class NewsScheduler {
   private readonly redis: Redis
   private readonly queue: QueueLike
   private readonly worker: WorkerLike
+  private nextChatIndex = 0
 
   constructor(
     config: NewsSchedulerConfig,
@@ -332,6 +334,7 @@ export class NewsScheduler {
 
     const subscriptions =
       await this.chatSubscriptionStore.listEnabledSubscriptions()
+    const budget = new NewsEvaluationBudget()
 
     if (subscriptions.length === 0) {
       logger.debug(
@@ -349,7 +352,13 @@ export class NewsScheduler {
       'Evaluating subscribed chats for news delivery'
     )
 
-    for (const subscription of subscriptions) {
+    const start = this.nextChatIndex % subscriptions.length
+    const orderedSubscriptions = [
+      ...subscriptions.slice(start),
+      ...subscriptions.slice(0, start),
+    ]
+
+    for (const subscription of orderedSubscriptions) {
       const eligibleAt = this.getEligibleDeliveryTime(subscription)
 
       if (eligibleAt.getTime() > now.getTime()) {
@@ -397,7 +406,7 @@ export class NewsScheduler {
         }
 
         const result = await this.filter.evaluate(
-          { chatId: subscription.chatId, filter },
+          { chatId: subscription.chatId, filter, budget },
           item
         )
         if (result === null) continue
@@ -534,6 +543,10 @@ export class NewsScheduler {
           'No relevant article found for chat'
         )
       }
+    }
+
+    if (budget.exhausted) {
+      this.nextChatIndex = (start + 1) % subscriptions.length
     }
 
     const deliveryDuration = Date.now() - startTime

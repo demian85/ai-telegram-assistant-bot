@@ -23,12 +23,11 @@ const validDefaultsConfig = {
     deliveryCheckIntervalSeconds: 60,
     relevanceThreshold: 70,
     maxArticlesPerPoll: 10,
-    topics: ['AI'],
+    defaultFilter: 'AI',
   },
   llm: {
     apiKeyEnvVar: 'TEST_API_KEY',
     baseUrl: 'https://api.test.com',
-    defaultModel: 'test-model',
     roles: {
       chat: {
         model: 'chat-model',
@@ -40,64 +39,16 @@ const validDefaultsConfig = {
         supportsVision: true,
         systemPrompt: 'Summarize this',
       },
-      newsRelevance: {
-        model: 'relevance-model',
-        supportsVision: true,
-        systemPrompt: 'Judge relevance',
+      newsPreferences: {
+        model: 'preference-model',
+        supportsVision: false,
+        systemPrompt: 'Compile preferences',
       },
     },
   },
 }
 
 describe('loadAppConfig', () => {
-  test('migrates legacy topic overrides before merging modern defaults', () => {
-    const tempDir = createTempDir()
-    const legacyTopic = 'Custom legacy interest'
-    try {
-      writeFileSync(
-        path.join(tempDir, 'config.defaults.json'),
-        JSON.stringify({
-          ...validDefaultsConfig,
-          news: {
-            ...validDefaultsConfig.news,
-            defaultFilter: 'Shipped default instruction',
-          },
-        })
-      )
-      writeFileSync(
-        path.join(tempDir, 'config.json'),
-        JSON.stringify({
-          ...validDefaultsConfig,
-          news: { ...validDefaultsConfig.news, topics: [legacyTopic] },
-        })
-      )
-      const config = loadAppConfig({ rootDir: tempDir })
-      expect(config.news.defaultFilter).toContain(legacyTopic)
-      expect(config.news).not.toHaveProperty('topics')
-    } finally {
-      cleanupTempDir(tempDir)
-    }
-  })
-
-  test('prefers an explicit default filter over legacy topics', () => {
-    const tempDir = createTempDir()
-    const defaultFilter = 'My explicit filter'
-    try {
-      writeFileSync(
-        path.join(tempDir, 'config.defaults.json'),
-        JSON.stringify({
-          ...validDefaultsConfig,
-          news: { ...validDefaultsConfig.news, defaultFilter },
-        })
-      )
-      expect(loadAppConfig({ rootDir: tempDir }).news.defaultFilter).toBe(
-        defaultFilter
-      )
-    } finally {
-      cleanupTempDir(tempDir)
-    }
-  })
-
   test.each(['', '   ', 'x'.repeat(3001)])(
     'rejects invalid default filter length',
     (defaultFilter) => {
@@ -111,14 +62,21 @@ describe('loadAppConfig', () => {
           })
         )
         expect(() => loadAppConfig({ rootDir: tempDir })).toThrow(
-          /news.defaultFilter/
+          expect.objectContaining({
+            issues: expect.arrayContaining([
+              expect.objectContaining({
+                code: defaultFilter.length > 3000 ? 'too_big' : 'too_small',
+                path: ['news', 'defaultFilter'],
+              }),
+            ]),
+          })
         )
       } finally {
         cleanupTempDir(tempDir)
       }
     }
   )
-  test('inherits the new role for existing overrides and honors a separate preference model', () => {
+  test('honors a separate preference model in a complete override', () => {
     const tempDir = createTempDir()
     const newRole = {
       model: 'preference-default',
@@ -145,7 +103,7 @@ describe('loadAppConfig', () => {
       )
       expect(
         loadAppConfig({ rootDir: tempDir }).llm.roles.newsPreferences
-      ).toEqual(newRole)
+      ).toEqual(validDefaultsConfig.llm.roles.newsPreferences)
 
       writeFileSync(
         path.join(tempDir, 'config.json'),
@@ -162,7 +120,6 @@ describe('loadAppConfig', () => {
       )
       const config = loadAppConfig({ rootDir: tempDir })
       expect(config.llm.roles.newsPreferences.model).toBe('preference-override')
-      expect(config.llm.roles.newsRelevance.model).toBe('relevance-model')
     } finally {
       cleanupTempDir(tempDir)
     }
@@ -189,7 +146,14 @@ describe('loadAppConfig', () => {
         })
       )
       expect(() => loadAppConfig({ rootDir: tempDir })).toThrow(
-        /newsPreferences.model/
+        expect.objectContaining({
+          issues: expect.arrayContaining([
+            expect.objectContaining({
+              code: 'invalid_type',
+              path: ['llm', 'roles', 'newsPreferences', 'model'],
+            }),
+          ]),
+        })
       )
     } finally {
       cleanupTempDir(tempDir)
@@ -253,7 +217,14 @@ describe('loadAppConfig', () => {
       )
 
       expect(() => loadAppConfig({ rootDir: tempDir })).toThrow(
-        /Config file must contain a JSON object/
+        expect.objectContaining({
+          issues: expect.arrayContaining([
+            expect.objectContaining({
+              code: 'invalid_type',
+              path: [],
+            }),
+          ]),
+        })
       )
     } finally {
       cleanupTempDir(tempDir)
@@ -280,7 +251,7 @@ describe('loadAppConfig', () => {
           deliveryCheckIntervalSeconds: 60,
           relevanceThreshold: 70,
           maxArticlesPerPoll: 10,
-          topics: ['AI'],
+          defaultFilter: 'AI',
         },
         llm: validDefaultsConfig.llm,
       }
@@ -319,7 +290,7 @@ describe('loadAppConfig', () => {
           deliveryCheckIntervalSeconds: 60,
           relevanceThreshold: 70,
           maxArticlesPerPoll: 10,
-          topics: ['AI'],
+          defaultFilter: 'AI',
         },
         llm: validDefaultsConfig.llm,
       }
@@ -355,7 +326,15 @@ describe('loadAppConfig', () => {
       )
 
       expect(() => loadAppConfig({ rootDir: tempDir })).toThrow(
-        /Unknown top-level config key "unknownKey"/
+        expect.objectContaining({
+          issues: expect.arrayContaining([
+            expect.objectContaining({
+              code: 'unrecognized_keys',
+              path: [],
+              keys: ['unknownKey'],
+            }),
+          ]),
+        })
       )
     } finally {
       cleanupTempDir(tempDir)
@@ -381,7 +360,15 @@ describe('loadAppConfig', () => {
       )
 
       expect(() => loadAppConfig({ rootDir: tempDir })).toThrow(
-        /Unknown top-level config key "invalidSection"/
+        expect.objectContaining({
+          issues: expect.arrayContaining([
+            expect.objectContaining({
+              code: 'unrecognized_keys',
+              path: [],
+              keys: ['invalidSection'],
+            }),
+          ]),
+        })
       )
     } finally {
       cleanupTempDir(tempDir)
@@ -406,7 +393,14 @@ describe('loadAppConfig', () => {
       )
 
       expect(() => loadAppConfig({ rootDir: tempDir })).toThrow(
-        /Invalid telegram.botUsername.*expected string/
+        expect.objectContaining({
+          issues: expect.arrayContaining([
+            expect.objectContaining({
+              code: 'invalid_type',
+              path: ['telegram', 'botUsername'],
+            }),
+          ]),
+        })
       )
     } finally {
       cleanupTempDir(tempDir)
@@ -431,7 +425,14 @@ describe('loadAppConfig', () => {
       )
 
       expect(() => loadAppConfig({ rootDir: tempDir })).toThrow(
-        /Invalid news.pollIntervalMinutes.*expected number/
+        expect.objectContaining({
+          issues: expect.arrayContaining([
+            expect.objectContaining({
+              code: 'invalid_type',
+              path: ['news', 'pollIntervalMinutes'],
+            }),
+          ]),
+        })
       )
     } finally {
       cleanupTempDir(tempDir)
@@ -462,7 +463,14 @@ describe('loadAppConfig', () => {
       )
 
       expect(() => loadAppConfig({ rootDir: tempDir })).toThrow(
-        /Invalid llm.roles.chat.supportsVision.*expected boolean/
+        expect.objectContaining({
+          issues: expect.arrayContaining([
+            expect.objectContaining({
+              code: 'invalid_type',
+              path: ['llm', 'roles', 'chat', 'supportsVision'],
+            }),
+          ]),
+        })
       )
     } finally {
       cleanupTempDir(tempDir)
@@ -487,7 +495,14 @@ describe('loadAppConfig', () => {
       )
 
       expect(() => loadAppConfig({ rootDir: tempDir })).toThrow(
-        /Invalid telegram.whitelistedUsers.*expected string\[\]/
+        expect.objectContaining({
+          issues: expect.arrayContaining([
+            expect.objectContaining({
+              code: 'invalid_type',
+              path: ['telegram', 'whitelistedUsers'],
+            }),
+          ]),
+        })
       )
     } finally {
       cleanupTempDir(tempDir)
@@ -512,7 +527,14 @@ describe('loadAppConfig', () => {
       )
 
       expect(() => loadAppConfig({ rootDir: tempDir })).toThrow(
-        /Invalid telegram.whitelistedUsers.*expected string\[\]/
+        expect.objectContaining({
+          issues: expect.arrayContaining([
+            expect.objectContaining({
+              code: 'invalid_type',
+              path: ['telegram', 'whitelistedUsers', 1],
+            }),
+          ]),
+        })
       )
     } finally {
       cleanupTempDir(tempDir)
@@ -537,7 +559,14 @@ describe('loadAppConfig', () => {
       )
 
       expect(() => loadAppConfig({ rootDir: tempDir })).toThrow(
-        /Invalid news.relevanceThreshold.*expected number/
+        expect.objectContaining({
+          issues: expect.arrayContaining([
+            expect.objectContaining({
+              code: 'invalid_type',
+              path: ['news', 'relevanceThreshold'],
+            }),
+          ]),
+        })
       )
     } finally {
       cleanupTempDir(tempDir)
@@ -558,8 +587,7 @@ describe('loadAppConfig', () => {
         news: validDefaultsConfig.news,
         llm: {
           apiKeyEnvVar: 'TEST_API_KEY',
-          baseUrl: 'https://api.test.com',
-          defaultModel: 'custom-default-model',
+          baseUrl: 'https://custom.test.com',
           roles: validDefaultsConfig.llm.roles,
         },
       }
@@ -571,9 +599,8 @@ describe('loadAppConfig', () => {
 
       const config = loadAppConfig({ rootDir: tempDir })
 
-      expect(config.llm.defaultModel).toBe('custom-default-model')
       expect(config.llm.apiKeyEnvVar).toBe('TEST_API_KEY')
-      expect(config.llm.baseUrl).toBe('https://api.test.com')
+      expect(config.llm.baseUrl).toBe('https://custom.test.com')
       expect(config.llm.roles.chat.model).toBe('chat-model')
       expect(config.llm.roles.chat.supportsVision).toBe(false)
     } finally {

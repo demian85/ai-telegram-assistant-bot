@@ -25,6 +25,27 @@ export class InMemoryRedis {
     return this.values.get(key) ?? null
   }
 
+  async mget(...keys: string[]): Promise<(string | null)[]> {
+    return keys.map((key) => this.values.get(key) ?? null)
+  }
+
+  async eval(
+    _script: string,
+    numberOfKeys: number,
+    ...arguments_: string[]
+  ): Promise<number> {
+    const indexKey = arguments_[0]
+    const itemKeys = arguments_.slice(1, numberOfKeys)
+    const ids = arguments_.slice(numberOfKeys)
+    let removed = 0
+    for (let index = 0; index < itemKeys.length; index++) {
+      if (!this.values.has(itemKeys[index])) {
+        removed += await this.zrem(indexKey, ids[index])
+      }
+    }
+    return removed
+  }
+
   async set(key: string, value: string, mode?: 'NX'): Promise<'OK' | null> {
     if (mode === 'NX' && this.values.has(key)) return null
     this.values.set(key, value)
@@ -124,9 +145,10 @@ export class InMemoryRedis {
       .map((entry) => entry.member)
   }
 
-  async zrem(key: string, member: string): Promise<number> {
+  async zrem(key: string, ...members: string[]): Promise<number> {
     const entries = this.sortedSets.get(key) ?? []
-    const nextEntries = entries.filter((entry) => entry.member !== member)
+    const removals = new Set(members)
+    const nextEntries = entries.filter((entry) => !removals.has(entry.member))
 
     this.sortedSets.set(key, nextEntries)
 

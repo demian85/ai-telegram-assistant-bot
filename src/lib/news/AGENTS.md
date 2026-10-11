@@ -16,6 +16,7 @@ Per-chat preferences and shared decisions filter feed queries and scheduled deli
 | `preferences.ts`             | Structured criteria generation, durable records, legacy/default migration |
 | `preference-schema.ts`       | Criteria validation, source grounding, instruction rendering              |
 | `chat-news-filter.ts`        | Shared versioned decision cache and evaluation                            |
+| `evaluation-budget.ts`       | Fresh provider evaluation budgets                                         |
 | `chat-subscription-store.ts` | Enabled state, cadence, delivery timestamps                               |
 | `news-delivery-store.ts`     | Per-chat article delivery records and rollback                            |
 | `types.ts`, `index.ts`       | Shared contracts, cadence bounds, public exports                          |
@@ -28,6 +29,8 @@ Per-chat preferences and shared decisions filter feed queries and scheduled deli
 - Delivery loads enabled subscriptions, checks cadence, then evaluates eligible articles against each chat's resolved instruction.
 - Delivery considers articles fetched since `deliverAfter`, oldest first, skipping articles already delivered to that chat.
 - Send at most one relevant article per chat per cycle. Eligibility is the later of `deliverAfter` and `lastSentAt + interval`.
+- Each delivery cycle spends at most 10 fresh provider evaluations across all chats. Cached decisions and retry/cooldown/budget skips do not spend this budget; later cycles progress through cached rejections.
+- Rotate the starting chat after cycles that spend the entire evaluation budget so one chat cannot repeatedly consume it; ordinary delivery order remains stable while budget remains.
 - Write the delivery record before calling Telegram; remove it if the callback throws. Update `lastSentAt` only after success.
 - A send failure is rethrown and stops the current delivery cycle.
 
@@ -46,10 +49,12 @@ Per-chat preferences and shared decisions filter feed queries and scheduled deli
 
 ## Redis behavior
 
-- Article values expire after 7 days; the `news:items` index is scored by `fetchedAt`, not publication time.
+- Article values expire after 7 days; the `news:items` index is scored by `fetchedAt`, not publication time. Storage and indexed reads prune missing references in batches of 250; removal checks article existence atomically to preserve concurrent re-storage and retained old articles.
 - Preferences use `news:preferences:<chatId>` with no application expiry, independently of subscription records. Custom records retain description, criteria, instruction, revision, model, and generation time.
 - Complete decisions expire after 14 days. Keys include chat/article identity plus a hash of preference revision/original description, model/provider, decision version, question/rubric definitions, confidence/coverage thresholds, and evaluated title/description. Legacy four-question, chat-model and score-only keys are bypassed.
 - Unresolved evaluations remain withheld and are not cached as decisions. Separate retry metadata persists for 14 days: at most three evaluations per fingerprint, with 15-minute and one-hour cooldowns. Preference, model/config, and article-content changes receive independent budgets. Concurrent evaluations of the same fingerprint share one promise in the shared filter instance.
+- HTTP 429 pauses fresh decisions across delivery and query paths, chats and filter instances through a Redis cooldown keyed by provider base URL. Honor `retry-after-ms` or `Retry-After` (seconds or HTTP date), with a 60-second fallback and a one-second minimum. Rate limiting and skipped evaluations do not spend per-article retry attempts. The shared filter serializes fresh decisions so queued calls observe cooldown; cached decisions remain available.
+- The decision transport defaults to one HTTP attempt per evaluation. Explicit evaluation-script/test overrides may opt into SDK retries. Manual queries retain the existing 50-candidate/request limit.
 - `news.decision.request` records actual provider evaluations and attempt numbers at info level. Cache hits, retry skips, and per-article delivery scores are debug events.
 - Delivery values expire after 30 days. Article and delivery indexes do not receive matching expiry.
 - `legacyBroadcastedAt` and global relevance helpers remain compatibility surfaces; scheduled delivery uses per-chat records.
@@ -62,6 +67,8 @@ Per-chat preferences and shared decisions filter feed queries and scheduled deli
 | Decision HTTP contract, eligibility confidence and raw coverage  | `test/news-decisions.test.ts`         |
 | Generator corruption, source grounding and legacy migration      | `test/news-filter-regression.test.ts` |
 | Persistent retry budgets, cooldowns and concurrent evaluations   | `test/news-filter-retries.test.ts`    |
+| Delivery evaluation budget and query cache reuse                 | `test/news-request-limits.test.ts`    |
+| Expired index pruning, batching and concurrent re-storage        | `test/news-store.test.ts`             |
 | Repeat schedule replacement, unrelated jobs and cleanup failure  | `test/news-scheduler.test.ts`         |
 | Defaults, cadence, isolation, ordering, cooldowns and rollback   | `test/news-subscriptions.test.ts`     |
 | Group subscription and preference authorization                  | `test/telegram-routing.test.ts`       |

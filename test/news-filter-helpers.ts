@@ -74,10 +74,14 @@ export const decisionRequestSchema = z.object({
     })
     .strict(),
   questions: z.record(
+    z.string(),
     z.object({
       type: z.enum(['choice', 'score']),
       instructions: z.string(),
-      criteria: z.union([z.record(z.string()), z.array(z.string())]),
+      criteria: z.union([
+        z.record(z.string(), z.string()),
+        z.array(z.string()),
+      ]),
     })
   ),
 })
@@ -179,7 +183,6 @@ export function filterHarness(
   const preferences = new NewsPreferenceStore(redis.asRedis(), 'default-topic')
   const detector = new RelevanceDetector(model, {
     relevanceThreshold: 80,
-    systemPrompt: 'scoring-role',
   })
   const filter = new ChatNewsFilter(redis.asRedis(), preferences, detector)
   return { redis, model, preferences, detector, filter }

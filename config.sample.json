@@ -31,9 +31,6 @@
         "supportsVision": true,
         "systemPrompt": "Turn conversation history into concise memory notes. Preserve decisions, names, and open questions."
       },
-      "newsRelevance": {
-        "systemPrompt": "Judge whether an article substantively matches the chat's news preferences. Be selective, honor exclusions, and reject uncertain or incidental matches."
-      },
       "newsPreferences": {
         "model": "qwen3-5-35b-a3b",
         "supportsVision": false,

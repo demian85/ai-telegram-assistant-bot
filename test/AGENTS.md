@@ -20,10 +20,12 @@ Offline Vitest behavior coverage with injected service doubles and a real agent/
 | Preference persistence, model schema, exclusion gates, cache revisions | `news-filter.test.ts`, `news-filter-helpers.ts`         |
 | Shared scheduling/query/tool filtering and stale results               | `news-filter-paths.test.ts`                             |
 | Retry ceilings, persisted cooldowns, concurrent evaluation sharing     | `news-filter-retries.test.ts`                           |
+| Bounded delivery evaluations, query limits and cache reuse             | `news-request-limits.test.ts`                           |
+| Expired article index cleanup, batching and re-storage races           | `news-store.test.ts`                                    |
 | Schedule reconciliation, startup failure, delivery log levels          | `news-scheduler.test.ts`                                |
 | Decision HTTP contract, retries, eligibility and unrounded coverage    | `news-decisions.test.ts`                                |
-| Configurable decision models and generative-role compatibility         | `news-decision-config.test.ts`                          |
-| Modern config cleanup, legacy inputs and preference-model fallback     | `config-modern.test.ts`                                 |
+| Independent decision and generative models                             | `news-decision-config.test.ts`                          |
+| Modern config, retired-field rejection and required preference role    | `config-modern.test.ts`                                 |
 
 ## Harness conventions
 
