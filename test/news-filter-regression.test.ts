@@ -94,7 +94,7 @@ test('preserves structured exclusions and title requirements with their source t
     ],
     exclusions: [
       { rule: 'Exclude Python', sourceText: 'Exclude Python and' },
-      { rule: 'Exclude LangChain releases', sourceText: 'LangChain releases' },
+      { rule: 'Exclude LangChain releases', sourceText: 'LangChain releases.' },
     ],
     titleRules: [
       {
