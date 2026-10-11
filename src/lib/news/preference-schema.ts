@@ -26,11 +26,12 @@ export const newsPreferenceSchema = legacyPreferenceSchema
     criteria: generatedCriteriaSchema,
   })
   .superRefine((preference, ctx) => {
-    for (const criterion of [
+    const criteria = [
       ...preference.criteria.interests,
       ...preference.criteria.exclusions,
       ...preference.criteria.titleRules,
-    ]) {
+    ]
+    for (const criterion of criteria) {
       if (!preference.description.includes(criterion.sourceText)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -39,10 +40,19 @@ export const newsPreferenceSchema = legacyPreferenceSchema
         })
       }
     }
-    if (renderCriteria(preference.criteria).length > 3000) {
+    const quotedTokens = new Set(
+      criteria.flatMap((criterion) => criterion.sourceText.split(/\s+/u))
+    )
+    const tokens = preference.description.split(/\s+/u)
+    if (
+      tokens.some(
+        (token) => !/^\p{P}+$/u.test(token) && !quotedTokens.has(token)
+      )
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Compiled instruction exceeds 3000 characters',
+        message:
+          'Source quotes must cover complete original tokens, including keyword punctuation',
       })
     }
   })
@@ -60,9 +70,14 @@ export function renderCriteria(criteria: NewsCriteria): string {
   const compact = (rules: NewsCriteria['interests'], prefix?: RegExp): string =>
     [
       ...new Set(
-        rules.map((item) =>
-          (prefix ? item.rule.replace(prefix, '') : item.rule).trim()
-        )
+        rules.map((item) => {
+          const rule = (
+            prefix ? item.rule.replace(prefix, '') : item.rule
+          ).trim()
+          return ` ${rule} `.includes(` ${item.sourceText} `)
+            ? rule
+            : `${rule} (source: "${item.sourceText}")`
+        })
       ),
     ].join('; ')
   return [
