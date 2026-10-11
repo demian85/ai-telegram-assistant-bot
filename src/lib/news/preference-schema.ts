@@ -26,6 +26,9 @@ export const newsPreferenceSchema = legacyPreferenceSchema
     criteria: generatedCriteriaSchema,
   })
   .superRefine((preference, ctx) => {
+    const covered = new Array<boolean>(preference.description.length).fill(
+      false
+    )
     for (const criterion of [
       ...preference.criteria.interests,
       ...preference.criteria.exclusions,
@@ -38,6 +41,22 @@ export const newsPreferenceSchema = legacyPreferenceSchema
             'Each criterion must cite exact text from the original description',
         })
       }
+      let start = preference.description.indexOf(criterion.sourceText)
+      while (start !== -1) {
+        covered.fill(true, start, start + criterion.sourceText.length)
+        start = preference.description.indexOf(criterion.sourceText, start + 1)
+      }
+    }
+    const uncovered = preference.description
+      .split('')
+      .map((character, index) => (covered[index] ? ' ' : character))
+      .join('')
+    if (/[\p{L}\p{N}]/u.test(uncovered)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'Source quotes must cover all original preferences without omissions',
+      })
     }
     if (renderCriteria(preference.criteria).length > 3000) {
       ctx.addIssue({
@@ -60,9 +79,14 @@ export function renderCriteria(criteria: NewsCriteria): string {
   const compact = (rules: NewsCriteria['interests'], prefix?: RegExp): string =>
     [
       ...new Set(
-        rules.map((item) =>
-          (prefix ? item.rule.replace(prefix, '') : item.rule).trim()
-        )
+        rules.map((item) => {
+          const rule = (
+            prefix ? item.rule.replace(prefix, '') : item.rule
+          ).trim()
+          return rule.includes(item.sourceText)
+            ? rule
+            : `${rule} (source: "${item.sourceText}")`
+        })
       ),
     ].join('; ')
   return [

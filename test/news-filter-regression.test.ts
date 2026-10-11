@@ -89,17 +89,17 @@ test('preserves structured exclusions and title requirements with their source t
     interests: [
       {
         rule: 'Substantive coding-agent coverage',
-        sourceText: 'coding agents',
+        sourceText: 'Developer tools and coding agents.',
       },
     ],
     exclusions: [
-      { rule: 'Exclude Python', sourceText: 'Exclude Python' },
+      { rule: 'Exclude Python', sourceText: 'Exclude Python and' },
       { rule: 'Exclude LangChain releases', sourceText: 'LangChain releases' },
     ],
     titleRules: [
       {
         rule: 'Reject vague or identifier-only titles',
-        sourceText: 'Reject vague, SHA-only, and semver-only titles',
+        sourceText: 'Reject vague, SHA-only, and semver-only titles.',
       },
     ],
   }
