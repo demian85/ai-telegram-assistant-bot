@@ -358,7 +358,7 @@ export class NewsScheduler {
       ...subscriptions.slice(0, start),
     ]
 
-    for (const subscription of orderedSubscriptions) {
+    for (const [offset, subscription] of orderedSubscriptions.entries()) {
       const eligibleAt = this.getEligibleDeliveryTime(subscription)
 
       if (eligibleAt.getTime() > now.getTime()) {
@@ -405,10 +405,14 @@ export class NewsScheduler {
           continue
         }
 
+        const hadBudget = !budget.exhausted
         const result = await this.filter.evaluate(
           { chatId: subscription.chatId, filter, budget },
           item
         )
+        if (hadBudget && budget.exhausted) {
+          this.nextChatIndex = (start + offset + 1) % subscriptions.length
+        }
         if (result === null) continue
         const { score, isRelevant } = result
         logger.debug(
@@ -543,10 +547,6 @@ export class NewsScheduler {
           'No relevant article found for chat'
         )
       }
-    }
-
-    if (budget.exhausted) {
-      this.nextChatIndex = (start + 1) % subscriptions.length
     }
 
     const deliveryDuration = Date.now() - startTime

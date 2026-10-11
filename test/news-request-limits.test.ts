@@ -94,6 +94,47 @@ test('bounds manual queries to fifty candidates and reuses cached decisions', as
   expect(harness.respond).toHaveBeenCalledTimes(50)
 })
 
+test('rotates past the budget-consuming chat when the first subscription is not due', async () => {
+  // Given a not-due first chat followed by two chats with cold article backlogs.
+  const harness = await backlog()
+  await harness.subscriptions.markSent('a')
+  await harness.subscriptions.subscribe('c', new Date(Date.now() - 60_000))
+  await harness.preferences.save('c', preference('topic-c'))
+  const scheduler = new NewsScheduler(
+    {
+      redis: harness.redis.asRedis(),
+      model: harness.model,
+      newsConfig: {
+        feeds: [],
+        pollIntervalMinutes: 15,
+        deliveryCheckIntervalSeconds: 300,
+        maxArticlesPerPoll: 5,
+        relevanceThreshold: 80,
+        defaultFilter: 'default-topic',
+      },
+    },
+    {
+      filter: harness.filter,
+      newsStore: harness.store,
+      chatSubscriptionStore: harness.subscriptions,
+      queue: createNoopQueue(),
+      worker: createNoopWorker(),
+    }
+  )
+
+  // When two delivery cycles consume the full fresh-evaluation budget.
+  await scheduler['deliverRelevantArticles'](async () => undefined)
+  await scheduler['deliverRelevantArticles'](async () => undefined)
+
+  // Then the second due chat gets the next budget instead of being starved.
+  expect(
+    harness.respond.mock.calls.map(([request]) => request.state.preferences)
+  ).toEqual([
+    ...Array.from({ length: 10 }, () => 'topic-b'),
+    ...Array.from({ length: 10 }, () => 'topic-c'),
+  ])
+})
+
 test('serves cached decisions with an exhausted budget and leaves skipped articles eligible', async () => {
   // Given a cached acceptance and an exhausted evaluation budget.
   const respond = vi.fn(() => acceptedDecision)
