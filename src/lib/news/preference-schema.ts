@@ -58,12 +58,6 @@ export const newsPreferenceSchema = legacyPreferenceSchema
           'Source quotes must cover all original preferences without omissions',
       })
     }
-    if (renderCriteria(preference.criteria).length > 3000) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Compiled instruction exceeds 3000 characters',
-      })
-    }
   })
 export type NewsPreference = z.infer<typeof newsPreferenceSchema>
 export type LegacyNewsPreference = z.infer<typeof legacyPreferenceSchema>
