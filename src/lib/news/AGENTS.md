@@ -30,7 +30,7 @@ Per-chat preferences and shared decisions filter feed queries and scheduled deli
 - Delivery considers articles fetched since `deliverAfter`, oldest first, skipping articles already delivered to that chat.
 - Send at most one relevant article per chat per cycle. Eligibility is the later of `deliverAfter` and `lastSentAt + interval`.
 - Each delivery cycle spends at most 10 fresh provider evaluations across all chats. Cached decisions and retry/cooldown/budget skips do not spend this budget; later cycles progress through cached rejections.
-- Rotate the starting chat after cycles that spend the entire evaluation budget so one chat cannot repeatedly consume it; ordinary delivery order remains stable while budget remains.
+- Rotate after cycles that spend the entire evaluation budget, remembering the consuming chat ID and starting at the next enabled ID in sorted order. Redis result reordering and subscription additions/removals must not shift the cursor back to the same chat. Ordinary delivery order remains stable while budget remains.
 - Write the delivery record before calling Telegram; remove it if the callback throws. Update `lastSentAt` only after success.
 - A send failure is rethrown and stops the current delivery cycle.
 
@@ -40,7 +40,7 @@ Per-chat preferences and shared decisions filter feed queries and scheduled deli
 - Subscribe/resubscribe resets `deliverAfter`; interval and preference updates preserve the enabled state.
 - Without a saved preference record, legacy subscription topics migrate once using Redis SET NX. Otherwise use `news.defaultFilter`. Existing custom records and reset markers take precedence. Migration leaves subscription data unchanged.
 - Legacy unstructured preference records use their original text as the active instruction.
-- New custom records contain version 2 structured interests, exclusions, and titleRules. Each rule cites exact sourceText from the original description; validate before saving and render compact display sections in application code. Existing records render compactly without rewriting their original description, criteria, or revision.
+- New custom records contain version 2 structured interests, exclusions, and titleRules. Source quotes cover complete whitespace-delimited tokens from the original description, including punctuation attached to words; standalone punctuation separators may be omitted. Validate before saving and retain source wording in display when a paraphrase omits it. Existing records render without rewriting their original description, criteria, or revision; incomplete historical compilations use the original description.
 - Queries have no unfiltered fallback.
 - `/news` can fetch fresh feeds; `/summary` uses cached articles fetched in the last 24 hours and invokes the chat agent. Queries inspect at most 50 candidates and return at most 10 matches.
 - Relevance evaluates bounded title and description together; original preferences are sent once, and compiled instructions and article bodies are omitted. Explicit title requirements apply only to titles. Missing substantive matches or explicit preference violations make an article ineligible regardless of score.
