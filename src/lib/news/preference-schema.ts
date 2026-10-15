@@ -40,10 +40,12 @@ export const newsPreferenceSchema = legacyPreferenceSchema
         })
       }
     }
+    // Recognize unspaced sentence starts without splitting .NET or Node.js.
+    const tokenBoundary = /\s+|(?<=\S[.!?])(?=\p{Lu}\p{Ll})/u
     const quotedTokens = new Set(
-      criteria.flatMap((criterion) => criterion.sourceText.split(/\s+/u))
+      criteria.flatMap((criterion) => criterion.sourceText.split(tokenBoundary))
     )
-    const tokens = preference.description.split(/\s+/u)
+    const tokens = preference.description.split(tokenBoundary)
     if (
       tokens.some(
         (token) => !/^\p{P}+$/u.test(token) && !quotedTokens.has(token)

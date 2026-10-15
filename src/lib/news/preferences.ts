@@ -24,6 +24,7 @@ Every criterion must contain an actionable rule and sourceText quoted exactly fr
 Keep rules concise. Group related interests and equivalent exclusions without losing scope or exceptions. Use short phrases; do not repeat section labels or "Select articles substantively covering" in every rule.
 Spell out every named topic, product, company, and keyword in the interest rules. Never replace a concrete list with "specified interests" or other placeholders.
 Together, sourceText quotes must cover complete tokens from the entire description, including selection conditions, exceptions, and title requirements. Preserve punctuation attached to words, such as C++, C#, .NET, Node.js, and @scope/package. Never split a token between quotes. Quote complete clauses or sentences to retain connecting wording. Only whitespace and standalone punctuation separators may be omitted between quotes.
+Adjacent sentences may be quoted separately when a space is missing after sentence-ending punctuation, as in workflows.Include. Keep sourceText exactly as written; do not insert spaces or rewrite the original description.
 Preserve all preferences and exceptions, including negative preferences and title-quality rules.
 Do not invent interests, expand named companies to all technology news, or return a heading instead of criteria.
 Require at least one interest. Empty exclusions or titleRules arrays are allowed only when none were specified.
