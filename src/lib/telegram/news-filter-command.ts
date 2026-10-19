@@ -15,7 +15,7 @@ export class NewsFilterCommand {
   ) {}
 
   async handle(
-    ctx: TelegramContext,
+    ctx: Pick<TelegramContext, 'reply' | 'sendChatAction'>,
     request: { readonly chatId: string; readonly args: string }
   ): Promise<void> {
     const { chatId, args } = request
@@ -37,7 +37,8 @@ export class NewsFilterCommand {
             ? 'Compiled selection rules'
             : 'Active filter (using your original preferences)'
           : 'Default selection rules'
-        await ctx.reply(
+        await this.replyInParts(
+          ctx,
           `${label}:\n${active.instruction}\n\nYour original preferences take precedence. Use /newsfilter <what you like and dislike> to replace them, or /newsfilter reset for defaults.`
         )
         return
@@ -65,7 +66,8 @@ export class NewsFilterCommand {
       await ctx.sendChatAction('typing')
       const preference = await this.generator.generate(parsed.data)
       await this.preferences.save(chatId, preference)
-      await ctx.reply(
+      await this.replyInParts(
+        ctx,
         `News filter saved:\n${preference.instruction}\n\nThis replaces your previous preferences. Use /newsfilter to view them or /newsfilter reset for configured defaults.`
       )
     } catch (error) {
@@ -83,5 +85,20 @@ export class NewsFilterCommand {
     } finally {
       this.pending.delete(chatId)
     }
+  }
+
+  private async replyInParts(
+    ctx: Pick<TelegramContext, 'reply'>,
+    text: string
+  ): Promise<void> {
+    let part = ''
+    for (const character of text) {
+      if (part.length + character.length > 4096) {
+        await ctx.reply(part)
+        part = ''
+      }
+      part += character
+    }
+    if (part) await ctx.reply(part)
   }
 }

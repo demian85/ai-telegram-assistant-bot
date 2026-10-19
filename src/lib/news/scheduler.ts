@@ -76,7 +76,7 @@ export class NewsScheduler {
   private readonly redis: Redis
   private readonly queue: QueueLike
   private readonly worker: WorkerLike
-  private nextChatIndex = 0
+  private lastBudgetChatId?: string
 
   constructor(
     config: NewsSchedulerConfig,
@@ -352,7 +352,14 @@ export class NewsScheduler {
       'Evaluating subscribed chats for news delivery'
     )
 
-    const start = this.nextChatIndex % subscriptions.length
+    const start = Math.max(
+      0,
+      subscriptions.findIndex(
+        (subscription) =>
+          this.lastBudgetChatId === undefined ||
+          subscription.chatId > this.lastBudgetChatId
+      )
+    )
     const orderedSubscriptions = [
       ...subscriptions.slice(start),
       ...subscriptions.slice(0, start),
@@ -405,10 +412,14 @@ export class NewsScheduler {
           continue
         }
 
+        const hadBudget = !budget.exhausted
         const result = await this.filter.evaluate(
           { chatId: subscription.chatId, filter, budget },
           item
         )
+        if (hadBudget && budget.exhausted) {
+          this.lastBudgetChatId = subscription.chatId
+        }
         if (result === null) continue
         const { score, isRelevant } = result
         logger.debug(
@@ -543,10 +554,6 @@ export class NewsScheduler {
           'No relevant article found for chat'
         )
       }
-    }
-
-    if (budget.exhausted) {
-      this.nextChatIndex = (start + 1) % subscriptions.length
     }
 
     const deliveryDuration = Date.now() - startTime
