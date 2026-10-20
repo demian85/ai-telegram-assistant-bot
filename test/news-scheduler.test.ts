@@ -1,12 +1,15 @@
 import type { JobsOptions } from 'bullmq'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import { NewsScheduler } from '../src/lib/news/scheduler.js'
 import { NewsStore } from '../src/lib/news/news-store.js'
 import { ChatSubscriptionStore } from '../src/lib/news/chat-subscription-store.js'
+import { NewsDeliveryStore } from '../src/lib/news/news-delivery-store.js'
 import {
   article,
   decisionModel,
   acceptedDecision,
+  filterHarness,
+  preference,
 } from './news-filter-helpers.js'
 import {
   InMemoryRedis,
@@ -168,3 +171,70 @@ test('delivery evaluation detail is debug level while successful delivery remain
       ?.level
   ).toBe('info')
 })
+
+test.each([
+  { allowedGroupIds: undefined, expectedChatIds: ['100'] },
+  { allowedGroupIds: [], expectedChatIds: ['100'] },
+  { allowedGroupIds: ['-300'], expectedChatIds: ['100'] },
+  { allowedGroupIds: ['-100'], expectedChatIds: ['-100', '100'] },
+])(
+  'skips denied group subscriptions before scoring with allowlist $allowedGroupIds',
+  async ({ allowedGroupIds, expectedChatIds }) => {
+    // Given due private and group subscriptions with a fresh relevant article.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-20T12:00:00Z'))
+    try {
+      const respond = vi.fn(() => acceptedDecision)
+      const harness = filterHarness(respond)
+      const subscriptions = new ChatSubscriptionStore(harness.redis.asRedis())
+      const newsStore = new NewsStore(harness.redis.asRedis())
+      const deliveryStore = new NewsDeliveryStore(harness.redis.asRedis())
+      for (const chatId of ['-100', '-200', '100']) {
+        await subscriptions.subscribe(chatId, new Date('2026-10-20T11:00:00Z'))
+        await harness.preferences.save(chatId, preference(`topic-${chatId}`))
+      }
+      const deniedSubscription = await subscriptions.getSubscription('-200')
+      await newsStore.storeItem(article('allowlist-news'))
+      const evaluate = vi.spyOn(harness.filter, 'evaluate')
+      const resolve = vi.spyOn(harness.preferences, 'resolve')
+      const scheduler = new NewsScheduler(
+        {
+          redis: harness.redis.asRedis(),
+          model: harness.model,
+          newsConfig,
+          ...(allowedGroupIds === undefined ? {} : { allowedGroupIds }),
+        },
+        {
+          filter: harness.filter,
+          chatSubscriptionStore: subscriptions,
+          newsStore,
+          newsDeliveryStore: deliveryStore,
+          queue: createNoopQueue(),
+          worker: createNoopWorker(),
+        }
+      )
+      const deliveredChatIds: string[] = []
+
+      // When scheduled delivery processes the stored subscriptions.
+      await scheduler['deliverRelevantArticles'](async ({ chatId }) => {
+        deliveredChatIds.push(chatId)
+      })
+
+      // Then only allowed groups and the private chat use scoring or delivery.
+      expect(evaluate.mock.calls.map(([context]) => context.chatId)).toEqual(
+        expectedChatIds
+      )
+      expect(new Set(resolve.mock.calls.map(([chatId]) => chatId))).toEqual(
+        new Set(expectedChatIds)
+      )
+      expect(respond).toHaveBeenCalledTimes(expectedChatIds.length)
+      expect(deliveredChatIds).toEqual(expectedChatIds)
+      expect(await deliveryStore.getDeliveredItemIds('-200')).toEqual([])
+      expect(await subscriptions.getSubscription('-200')).toEqual(
+        deniedSubscription
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  }
+)

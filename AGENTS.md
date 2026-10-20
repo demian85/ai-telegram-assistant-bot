@@ -78,6 +78,8 @@ npm run build
 - TypeScript ESM imports use `.js` specifiers; `@lib/*` resolves through TypeScript and Vitest aliases.
 - `src/index.ts` composes shared services. Pass the same `ChatNewsFilter` instance to query and scheduler paths so decisions, retries, and concurrent evaluations agree.
 - Memory keys use normalized `private:<id>` or `group:<id>` scope; news subscriptions and Telegram sends use raw chat IDs.
+- `telegram.allowedGroupIds` contains negative numeric chat ID strings and defaults to `[]` when omitted. All groups and supergroups are denied unless listed; private username whitelist behavior is unchanged. Denied ingress stops silently before parsing, persistence, or commands.
+- Pass the same group allowlist to `NewsScheduler` through its optional `allowedGroupIds` config field (default `[]`). Skip denied negative subscription IDs before preference resolution or scoring; positive private IDs are unaffected. `Bot.sendNewsArticle` independently rejects denied negative IDs.
 - Configured generative roles are `chat`, `summarizer`, and `newsPreferences`. The three generative roles use `ChatOpenAI`; relevance uses `VeniceDecisionModel` with `news.decisionModel` and the same provider URL/key. Venice and `jev-latest` are defaults, not a restriction on providers implementing that decision contract.
 - Decision questions use built-in eligibility instructions and coverage criteria; there is no configurable relevance system prompt. The removed `llm.roles.newsRelevance` entry, `llm.defaultModel`, and `news.topics` are rejected. Defaults and nonempty overrides require all three generative roles, including an explicit `newsPreferences`; use `news.defaultFilter` for default preferences.
 - Bootstrap uses the chat and preference role system prompts. The summarizer still constructs its prompt internally.
@@ -86,7 +88,7 @@ npm run build
 ## Avoid
 
 - Do not edit `build/` or describe this runtime as Venice-only.
-- Preserve the group mention rule when changing ingress: storing a group message must not automatically trigger an answer.
+- Preserve the allowlist and group mention rules when changing ingress: denied groups must not be stored or answered; storing an allowed group message must not automatically trigger an answer.
 - Never accept chat identity from model tool arguments; `AgentService` supplies the feed tool's trusted invocation context.
 
 ## Operational notes

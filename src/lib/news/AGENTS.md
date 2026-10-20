@@ -26,13 +26,15 @@ Per-chat preferences and shared decisions filter feed queries and scheduled deli
 - The `news-polling` queue handles `poll-news` and `deliver-news`; startup registers immediate and repeating jobs.
 - Startup removes only `poll-news` and `deliver-news` repeatable registrations by BullMQ key, preserving unrelated jobs. Listing or removal failure prevents all immediate and repeating jobs from being enqueued.
 - Polling fetches feeds, caps results with `maxArticlesPerPoll`, and stores new articles without scoring them.
-- Delivery loads enabled subscriptions, checks cadence, then evaluates eligible articles against each chat's resolved instruction.
+- `NewsSchedulerConfig.allowedGroupIds` is optional and defaults to `[]`; bootstrap supplies `telegram.allowedGroupIds`. Delivery excludes negative subscription chat IDs absent from this allowlist before preference resolution, article retrieval, or scoring. Positive private IDs are unaffected, and denied subscriptions retain their stored state.
+- Delivery loads allowed enabled subscriptions, checks cadence, then evaluates eligible articles against each chat's resolved instruction.
 - Delivery considers articles fetched since `deliverAfter`, oldest first, skipping articles already delivered to that chat.
 - Send at most one relevant article per chat per cycle. Eligibility is the later of `deliverAfter` and `lastSentAt + interval`.
 - Each delivery cycle spends at most 10 fresh provider evaluations across all chats. Cached decisions and retry/cooldown/budget skips do not spend this budget; later cycles progress through cached rejections.
 - Rotate after cycles that spend the entire evaluation budget, remembering the consuming chat ID and starting at the next enabled ID in sorted order. Redis result reordering and subscription additions/removals must not shift the cursor back to the same chat. Ordinary delivery order remains stable while budget remains.
 - Write the delivery record before calling Telegram; remove it if the callback throws. Update `lastSentAt` only after success.
 - A send failure is rethrown and stops the current delivery cycle.
+- `Bot.sendNewsArticle` independently rejects denied negative group IDs before calling Telegram.
 
 ## Subscription and query contracts
 
@@ -61,16 +63,17 @@ Per-chat preferences and shared decisions filter feed queries and scheduled deli
 
 ## Verification
 
-| Behavior                                                         | Test file                             |
-| ---------------------------------------------------------------- | ------------------------------------- |
-| Shared delivery/query/summary/tool preferences and stale results | `test/news-filter-paths.test.ts`      |
-| Decision HTTP contract, eligibility confidence and raw coverage  | `test/news-decisions.test.ts`         |
-| Generator corruption, source grounding and legacy migration      | `test/news-filter-regression.test.ts` |
-| Persistent retry budgets, cooldowns and concurrent evaluations   | `test/news-filter-retries.test.ts`    |
-| Delivery evaluation budget and query cache reuse                 | `test/news-request-limits.test.ts`    |
-| Expired index pruning, batching and concurrent re-storage        | `test/news-store.test.ts`             |
-| Repeat schedule replacement, unrelated jobs and cleanup failure  | `test/news-scheduler.test.ts`         |
-| Defaults, cadence, isolation, ordering, cooldowns and rollback   | `test/news-subscriptions.test.ts`     |
-| Group subscription and preference authorization                  | `test/telegram-routing.test.ts`       |
+| Behavior                                                                 | Test file                             |
+| ------------------------------------------------------------------------ | ------------------------------------- |
+| Shared delivery/query/summary/tool preferences and stale results         | `test/news-filter-paths.test.ts`      |
+| Decision HTTP contract, eligibility confidence and raw coverage          | `test/news-decisions.test.ts`         |
+| Generator corruption, source grounding and legacy migration              | `test/news-filter-regression.test.ts` |
+| Persistent retry budgets, cooldowns and concurrent evaluations           | `test/news-filter-retries.test.ts`    |
+| Delivery evaluation budget and query cache reuse                         | `test/news-request-limits.test.ts`    |
+| Expired index pruning, batching and concurrent re-storage                | `test/news-store.test.ts`             |
+| Repeat schedule replacement, unrelated jobs and cleanup failure          | `test/news-scheduler.test.ts`         |
+| Group allowlist defaults and denied subscriptions skipped before scoring | `test/news-scheduler.test.ts`         |
+| Defaults, cadence, isolation, ordering, cooldowns and rollback           | `test/news-subscriptions.test.ts`     |
+| Group subscription and preference authorization                          | `test/telegram-routing.test.ts`       |
 
 Use injected Redis, feed/scoring, queue and worker doubles from `test/test-helpers.ts`; these do not prove live scheduling or transport.

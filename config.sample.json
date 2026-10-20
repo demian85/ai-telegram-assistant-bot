@@ -1,7 +1,8 @@
 {
   "telegram": {
     "botUsername": "sample_venice_bot",
-    "whitelistedUsers": ["alice", "bob"]
+    "whitelistedUsers": ["alice", "bob"],
+    "allowedGroupIds": []
   },
   "news": {
     "feeds": [
