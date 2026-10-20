@@ -79,6 +79,7 @@ async function main() {
       redis,
       model: models.newsRelevance,
       newsConfig: config.news,
+      allowedGroupIds: config.telegram.allowedGroupIds,
       onDeliverArticle: async ({ chatId, article }) => {
         await bot.sendNewsArticle(chatId, article)
         logger.info({ chatId, article }, 'Relevant article delivered')

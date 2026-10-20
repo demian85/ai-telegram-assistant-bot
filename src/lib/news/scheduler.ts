@@ -53,6 +53,7 @@ export interface NewsSchedulerConfig {
   model: VeniceDecisionModel
   newsConfig: NewsConfig
   onDeliverArticle?: DeliveryCallback
+  allowedGroupIds?: string[]
 }
 
 export interface NewsSchedulerDependencies {
@@ -77,6 +78,7 @@ export class NewsScheduler {
   private readonly queue: QueueLike
   private readonly worker: WorkerLike
   private lastBudgetChatId?: string
+  private readonly allowedGroupIds: readonly string[]
 
   constructor(
     config: NewsSchedulerConfig,
@@ -104,6 +106,7 @@ export class NewsScheduler {
     this.newsDeliveryStore =
       dependencies.newsDeliveryStore ?? new NewsDeliveryStore(config.redis)
     this.config = config.newsConfig
+    this.allowedGroupIds = config.allowedGroupIds ?? []
     this.redis = config.redis
 
     this.queue =
@@ -332,8 +335,12 @@ export class NewsScheduler {
     )
     const startTime = Date.now()
 
-    const subscriptions =
+    const subscriptions = (
       await this.chatSubscriptionStore.listEnabledSubscriptions()
+    ).filter(
+      ({ chatId }) =>
+        !chatId.startsWith('-') || this.allowedGroupIds.includes(chatId)
+    )
     const budget = new NewsEvaluationBudget()
 
     if (subscriptions.length === 0) {

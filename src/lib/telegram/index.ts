@@ -197,6 +197,13 @@ export class Bot {
       ctx.chatType = scope.chatType
       ctx.chatScope = scope.chatScope
 
+      if (
+        scope.chatType === 'group' &&
+        !this.config.telegram.allowedGroupIds?.includes(String(ctx.chat?.id))
+      ) {
+        return
+      }
+
       const whitelistedUsers = this.config.telegram.whitelistedUsers
       const privateChat = ctx.chat?.type === 'private' ? ctx.chat : null
 
@@ -320,6 +327,13 @@ export class Bot {
     chatId: string,
     article: BotNewsArticle
   ): Promise<void> {
+    if (
+      chatId.startsWith('-') &&
+      !this.config.telegram.allowedGroupIds?.includes(chatId)
+    ) {
+      throw new Error(`Group ${chatId} is not allowed`)
+    }
+
     const lines = [
       `<b>${escapeHtml(article.title)}</b>`,
       createHtmlLink('Read more', article.url),

@@ -14,10 +14,13 @@ Chat, summaries, and preference generation use OpenAI-compatible LLMs. News filt
 
 ### Group chats
 
-- Group text and photo messages are persisted for shared memory
+- Groups and supergroups are denied by default; explicitly list their numeric chat IDs in `telegram.allowedGroupIds`
+- In allowed groups, text and photo messages are persisted for shared memory
 - The bot only replies when it is explicitly mentioned
 - Messages are stored with sender attribution, for example `Alice: can you summarize this?`, so shared context stays readable
 - News subscription commands are limited to group admins
+
+Unlisted groups are silently ignored before message parsing, memory persistence, or command handling, even when the bot is mentioned or the sender is an admin. They cannot receive scheduled news.
 
 This makes the bot usable as both a personal assistant in DMs and a passive-memory assistant in team or community groups.
 
@@ -33,6 +36,7 @@ This makes the bot usable as both a personal assistant in DMs and a passive-memo
 - Persistent per-chat news preferences, exclusions, and delivery cadence
 - On-demand recent news retrieval and 24-hour news summaries
 - Optional private-chat username whitelist
+- Explicit group-chat allowlist, with all groups denied by default
 
 ## Command reference
 
@@ -53,7 +57,7 @@ The bot registers these Telegram commands:
 /newsfilter reset      Restore the configured default news filter
 ```
 
-In private chats, subscription commands are self-service. In group chats, `/subscribe`, `/unsubscribe`, `/interval`, and `/newsfilter` require admin access, including viewing preferences.
+In private chats, subscription commands are self-service. In allowed group chats, `/subscribe`, `/unsubscribe`, `/interval`, and `/newsfilter` require admin access, including viewing preferences. No commands run in unlisted groups.
 
 ### Configure your news filter
 
@@ -129,6 +133,7 @@ Important config areas:
 
 - `telegram.botUsername` - used for mention handling in groups (do not include the `@` prefix)
 - `telegram.whitelistedUsers` - optional allowlist for private chats
+- `telegram.allowedGroupIds` - group and supergroup chat IDs as negative numeric strings, for example `["-1001234567890"]`; omitted or empty means all groups are denied
 - `news.feeds` - RSS feeds to monitor
 - `news.pollIntervalMinutes` - how often feeds are polled
 - `news.deliveryCheckIntervalSeconds` - how often subscriptions are checked for delivery
@@ -144,6 +149,10 @@ Important config areas:
 Preference generation and news decisions share `llm.baseUrl` and the API key. Set `llm.roles.newsPreferences.model` to a generative model that supports structured JSON output, and select the article evaluator with `news.decisionModel`. Eligibility instructions and coverage criteria are defined in application code and contribute to the decision cache fingerprint. The decision model receives your original preferences once, alongside the article title and description; compiled criteria remain available for inspection.
 
 All three generative roles must be explicitly configured in defaults and in any nonempty override. The loader validates a nonempty override as a full config before merging: a file containing only one role is not sufficient. The removed `llm.roles.newsRelevance` entry, `llm.defaultModel`, and `news.topics` are rejected. Configure default preferences with `news.defaultFilter`.
+
+Both shipped configs set `telegram.allowedGroupIds` to `[]`. To enable a group, add its exact negative numeric chat ID as a quoted string to this array in your complete `config.json`, then restart the bot. Group access is independent of `telegram.whitelistedUsers`: private chats still require a username, and a nonempty private whitelist still requires that username to match.
+
+Before deploying the group restriction, record the group's numeric chat ID using `/info`. If the restriction is already active, obtain the ID from existing Telegram update logs instead: `/info` is also silently ignored in an unlisted group. A group invite link is not a chat ID; do not use its token or assume a number in the link identifies the chat.
 
 The current adapter requires `POST /decisions` with the typed Choice and Score request/response contract described in [News decision model setup](docs/news-decision-models.md). The shared provider must also support OpenAI-compatible chat completions for the generative roles. Providers with a different decision API need an adapter; a chat-completion model alone is not a drop-in replacement. See [Choosing a news decision model](docs/news-model-selection.md) for selection criteria.
 
@@ -230,12 +239,14 @@ The bot continuously monitors configured RSS feeds and stores recent articles in
 
 1. Feeds are polled on a schedule
 2. New articles are stored and indexed in Redis (duplicates are skipped, and items expire after 7 days)
-3. Subscribed chats receive articles according to their own delivery interval
+3. Subscribed private chats and allowlisted groups receive articles according to their own delivery interval; denied group subscriptions are skipped before preference resolution or relevance scoring
 4. At delivery time, each candidate article is evaluated against **that chat's original preferences and saved instruction** through the configured provider's `/decisions` endpoint
 5. The first article that matches an interest, is not excluded, satisfies title requirements, meets the coverage threshold with confident semantic gates, and has not been delivered to that chat before is sent
 6. Users can also request recent articles manually with `/news` or ask for a digest with `/summary`
 
 Scheduled delivery, `/news`, `/summary`, and the built-in `get_recent_news` feed tool share the same filter and decision cache. The tool receives chat identity from the application, not from model arguments. Provider-native web search is separate and is not filtered by this feed pipeline.
+
+Removing a group from `telegram.allowedGroupIds` stops its ingress and scheduled delivery after restart, even if it still has an enabled subscription. Existing subscription and delivery records are retained; the outbound news sender also rejects denied negative chat IDs. Positive private-chat delivery IDs are unaffected.
 
 `/topics` has been removed. On first filter access, a chat with old subscription topics and no filter gets a persistent filter record derived from those topics. Existing custom filters and explicit resets take precedence; subscription status, interval, and delivery history remain unchanged. JSON config requires `news.defaultFilter`; old `news.topics` arrays are rejected.
 
@@ -276,5 +287,5 @@ For comparisons on frozen real RSS inputs, see [Live news model comparisons](doc
 ## Notes and gotchas
 
 - If the chat model does not support vision, photo messages are still persisted to memory, but the bot will not answer image-specific questions about them.
-- In groups, Telegram privacy mode affects how much context the bot can see. Disabling privacy mode is recommended if you want passive group memory capture for all messages.
+- In allowed groups, Telegram privacy mode affects how much context the bot can see. Disabling privacy mode is recommended if you want passive group memory capture for all messages; it does not bypass the group allowlist.
 - Only one Telegram polling instance should run at a time. If you get a Telegram `409 Conflict`, another bot instance is already connected.

@@ -3,6 +3,7 @@ import { z } from 'zod'
 export const telegramConfigSchema = z.strictObject({
   botUsername: z.string(),
   whitelistedUsers: z.array(z.string()),
+  allowedGroupIds: z.array(z.string().regex(/^-[1-9]\d*$/)).default([]),
 })
 
 export const newsConfigSchema = z.strictObject({

@@ -85,6 +85,8 @@ function createBotHarness(
   options: {
     imageSupport?: boolean
     generator?: Pick<NewsPreferenceGenerator, 'generate'>
+    allowedGroupIds?: string[]
+    whitelistedUsers?: string[]
   } = {}
 ) {
   const redis = new InMemoryRedis()
@@ -95,10 +97,13 @@ function createBotHarness(
     'AI and technology'
   )
   const agentService = new StubAgentService(options.imageSupport ?? true)
+  const allowedGroupIds =
+    'allowedGroupIds' in options ? options.allowedGroupIds : ['-100']
   const config: Config = {
     telegram: {
       botUsername: 'bot',
-      whitelistedUsers: [],
+      whitelistedUsers: options.whitelistedUsers ?? [],
+      ...(allowedGroupIds === undefined ? {} : { allowedGroupIds }),
     },
     news: {
       defaultFilter: 'AI and technology',
@@ -125,6 +130,260 @@ function createBotHarness(
 
   return { bot, redis, telegraf, subscriptions, agentService, preferences }
 }
+
+test.each([
+  { allowedGroupIds: undefined },
+  { allowedGroupIds: [] },
+  { allowedGroupIds: ['-200'] },
+])(
+  'silently ignores group mentions when the allowlist is $allowedGroupIds',
+  async ({ allowedGroupIds }) => {
+    // Given a group that is not allowed, even with a whitelisted sender.
+    const { telegraf, agentService } = createBotHarness({
+      allowedGroupIds,
+      whitelistedUsers: ['alice'],
+    })
+
+    // When the sender explicitly mentions the bot.
+    const ctx = await telegraf.dispatch(
+      createTextUpdate({
+        chatId: -100,
+        chatType: 'group',
+        username: 'alice',
+        text: '@bot help me',
+        entities: [{ type: 'mention', offset: 0, length: 4 }],
+      })
+    )
+
+    // Then ingress stops before parsing, persistence, invocation, or replies.
+    expect(ctx.parsedMessageText).toBeUndefined()
+    expect(ctx.isMention).toBeUndefined()
+    expect(agentService.persisted).toEqual([])
+    expect(agentService.invocations).toEqual([])
+    expect(ctx.replyLog).toEqual([])
+    expect(ctx.chatActions).toEqual([])
+  }
+)
+
+test.each(['group', 'supergroup'] as const)(
+  'silently ignores photos in an unlisted %s before resolving files',
+  async (chatType) => {
+    // Given an unlisted group with a photo and an explicit mention.
+    const { telegraf, agentService } = createBotHarness()
+    const getFileLink = vi.spyOn(telegraf.telegram, 'getFileLink')
+
+    // When its photo update is dispatched.
+    const ctx = await telegraf.dispatch(
+      createPhotoUpdate({
+        chatId: -200,
+        chatType,
+        username: 'alice',
+        caption: '@bot describe it',
+        captionEntities: [{ type: 'mention', offset: 0, length: 4 }],
+        fileIds: ['denied-photo'],
+      })
+    )
+
+    // Then no file lookup, model call, persistence, or response occurs.
+    expect(getFileLink).not.toHaveBeenCalled()
+    expect(ctx.parsedMessageText).toBeUndefined()
+    expect(agentService.persisted).toEqual([])
+    expect(agentService.invocations).toEqual([])
+    expect(ctx.replyLog).toEqual([])
+    expect(ctx.chatActions).toEqual([])
+  }
+)
+
+test.each([
+  '/start',
+  '/help',
+  '/abort',
+  '/clear',
+  '/info',
+  '/news',
+  '/summary',
+  '/subscribe',
+  '/unsubscribe',
+  '/interval 900',
+  '/newsfilter replacement',
+  '/newsfilter reset',
+  '/debugnews',
+])('silently ignores %s in an unlisted group', async (text) => {
+  // Given an unlisted group whose sender is an administrator.
+  const generate = vi.fn(async () => preference())
+  const { telegraf, redis, subscriptions, preferences, agentService } =
+    createBotHarness({ generator: { generate } })
+  const getChatMember = vi
+    .spyOn(telegraf.telegram, 'getChatMember')
+    .mockResolvedValue({ status: 'administrator' })
+  const previousSubscription = await subscriptions.subscribe('-200')
+  const previousPreference = preference('original')
+  await preferences.save('-200', previousPreference)
+  const set = vi.spyOn(redis, 'set')
+  const del = vi.spyOn(redis, 'del')
+
+  // When the command is dispatched.
+  const ctx = await telegraf.dispatch(
+    createTextUpdate({
+      chatId: -200,
+      chatType: 'supergroup',
+      username: 'alice',
+      text,
+    })
+  )
+
+  // Then command handlers cannot read authorization or mutate stored state.
+  expect(ctx.parsedMessageText).toBeUndefined()
+  expect(ctx.replyLog).toEqual([])
+  expect(ctx.chatActions).toEqual([])
+  expect(getChatMember).not.toHaveBeenCalled()
+  expect(generate).not.toHaveBeenCalled()
+  expect(set).not.toHaveBeenCalled()
+  expect(del).not.toHaveBeenCalled()
+  expect(agentService.clearedScopes).toEqual([])
+  expect(agentService.persisted).toEqual([])
+  expect(agentService.invocations).toEqual([])
+  expect(await subscriptions.getSubscription('-200')).toEqual(
+    previousSubscription
+  )
+  expect((await preferences.resolve('-200')).preference).toEqual(
+    previousPreference
+  )
+})
+
+test.each(['group', 'supergroup'] as const)(
+  'allows administrator subscriptions in a listed %s',
+  async (chatType) => {
+    // Given a listed group whose sender is not privately whitelisted.
+    const { telegraf, subscriptions } = createBotHarness({
+      whitelistedUsers: ['bob'],
+    })
+    telegraf.telegram.getChatMember = async () => ({
+      status: 'administrator',
+    })
+
+    // When its administrator subscribes.
+    const ctx = await telegraf.dispatch(
+      createTextUpdate({
+        chatId: -100,
+        chatType,
+        username: 'alice',
+        text: '/subscribe@bot',
+      })
+    )
+
+    // Then group authorization is independent of the private whitelist.
+    expect((await subscriptions.getSubscription('-100'))?.enabled).toBe(true)
+    expect(ctx.replyLog).toHaveLength(1)
+  }
+)
+
+test.each([
+  { username: 'alice', whitelistedUsers: [], allowed: true },
+  { username: 'alice', whitelistedUsers: ['alice'], allowed: true },
+  { username: 'bob', whitelistedUsers: ['alice'], allowed: false },
+  { username: undefined, whitelistedUsers: [], allowed: false },
+])(
+  'preserves private access for $username with whitelist $whitelistedUsers',
+  async ({ username, whitelistedUsers, allowed }) => {
+    // Given an empty group allowlist and the existing private whitelist.
+    const { telegraf, agentService } = createBotHarness({
+      allowedGroupIds: [],
+      whitelistedUsers,
+    })
+
+    // When a private message arrives.
+    const ctx = await telegraf.dispatch(
+      createTextUpdate({
+        chatId: 100,
+        chatType: 'private',
+        username,
+        text: 'Hello',
+      })
+    )
+
+    // Then private username authorization still controls invocation.
+    expect(agentService.invocations).toHaveLength(allowed ? 1 : 0)
+    expect(ctx.chatActions).toEqual(allowed ? ['typing'] : [])
+    expect(ctx.replyLog).toHaveLength(1)
+  }
+)
+
+test('invokes vision for a mentioned photo in a listed supergroup', async () => {
+  // Given a listed supergroup and a vision-capable model.
+  const { telegraf, agentService } = createBotHarness()
+
+  // When a member mentions the bot in a photo caption.
+  const ctx = await telegraf.dispatch(
+    createPhotoUpdate({
+      chatId: -100,
+      chatType: 'supergroup',
+      username: 'alice',
+      firstName: 'Alice',
+      caption: '@bot describe it',
+      captionEntities: [{ type: 'mention', offset: 0, length: 4 }],
+      fileIds: ['allowed-photo'],
+    })
+  )
+
+  // Then the image reaches the agent under the normalized group scope.
+  expect(agentService.invocations).toEqual([
+    {
+      chatId: 'group:-100',
+      input: {
+        text: 'Alice: describe it',
+        imageUrl: 'https://files.test/allowed-photo',
+        shouldInvoke: true,
+      },
+    },
+  ])
+  expect(ctx.chatActions).toEqual(['upload_photo'])
+  expect(ctx.replyLog[0]?.text).toBe('agent reply')
+})
+
+test.each([
+  { allowedGroupIds: undefined },
+  { allowedGroupIds: [] },
+  { allowedGroupIds: ['-200'] },
+])(
+  'rejects outbound group news when the allowlist is $allowedGroupIds',
+  async ({ allowedGroupIds }) => {
+    // Given a group absent from the allowlist.
+    const { bot, telegraf } = createBotHarness({ allowedGroupIds })
+
+    // When scheduled news is sent directly to that group.
+    const sending = bot.sendNewsArticle('-100', {
+      articleId: 'denied-news',
+      title: 'Denied news',
+      url: 'https://example.test/denied-news',
+      relevanceScore: 90,
+    })
+
+    // Then delivery rejects without calling Telegram.
+    await expect(sending).rejects.toThrow()
+    expect(telegraf.sentMessages).toEqual([])
+  }
+)
+
+test.each(['-100', '100'])(
+  'delivers outbound news to permitted chat %s',
+  async (chatId) => {
+    // Given an explicitly allowed group and an unrestricted private recipient.
+    const { bot, telegraf } = createBotHarness()
+
+    // When scheduled news is sent.
+    await bot.sendNewsArticle(chatId, {
+      articleId: 'allowed-news',
+      title: 'Allowed news',
+      url: 'https://example.test/allowed-news',
+      relevanceScore: 90,
+    })
+
+    // Then Telegram receives exactly one message for that chat.
+    expect(telegraf.sentMessages).toHaveLength(1)
+    expect(telegraf.sentMessages[0]?.chatId).toBe(chatId)
+  }
+)
 
 test('newsfilter saves and displays preferences without invoking the chat agent', async () => {
   const generated = preference()

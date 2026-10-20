@@ -1,5 +1,6 @@
 import { test, expect, describe } from 'vitest'
 import { loadAppConfig } from '../src/lib/config/load-config.js'
+import { telegramConfigSchema } from '../src/lib/config/schema.js'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -47,6 +48,87 @@ const validDefaultsConfig = {
     },
   },
 }
+
+describe('telegram group allowlist schema', () => {
+  test('accepts negative numeric group IDs as strings', () => {
+    // Given both basic group and supergroup ID strings.
+    const allowedGroupIds = ['-1', '-100', '-1001234567890']
+
+    // When Telegram configuration is parsed.
+    const config = telegramConfigSchema.parse({
+      ...validDefaultsConfig.telegram,
+      allowedGroupIds,
+    })
+
+    // Then the IDs retain their exact string representation.
+    expect(config.allowedGroupIds).toEqual(allowedGroupIds)
+  })
+
+  test.each([
+    '',
+    '100',
+    '0',
+    '-0',
+    '-01',
+    '-1.5',
+    '-1e3',
+    '-',
+    '-abc',
+    ' -100',
+    '-100 ',
+    '-100\n',
+    'group:-100',
+    -100,
+    null,
+  ])('rejects invalid group ID %j', (id) => {
+    // Given an allowlist containing an invalid ID.
+    const input = {
+      ...validDefaultsConfig.telegram,
+      allowedGroupIds: [id],
+    }
+
+    // When the schema validates the Telegram configuration.
+    const result = telegramConfigSchema.safeParse(input)
+
+    // Then it identifies the invalid allowlist entry.
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ path: ['allowedGroupIds', 0] }),
+        ])
+      )
+    }
+  })
+
+  test.each(['-100', -100, null, {}])(
+    'rejects a non-array group allowlist %j',
+    (allowedGroupIds) => {
+      // Given an allowlist with the wrong container type.
+      const input = { ...validDefaultsConfig.telegram, allowedGroupIds }
+
+      // When Telegram configuration is validated.
+      const result = telegramConfigSchema.safeParse(input)
+
+      // Then only an array can satisfy the allowlist contract.
+      expect(result.success).toBe(false)
+    }
+  )
+
+  test.each([{}, { allowedGroupIds: [] }])(
+    'resolves omitted or empty group access to no groups: %j',
+    (input) => {
+      // Given legacy configuration or an explicit empty allowlist.
+      const telegram = { ...validDefaultsConfig.telegram, ...input }
+
+      // When configuration defaults are applied.
+      const config = telegramConfigSchema.parse(telegram)
+
+      // Then no group receives access.
+      expect(config.allowedGroupIds).toEqual([])
+    }
+  )
+})
 
 describe('loadAppConfig', () => {
   test.each(['', '   ', 'x'.repeat(3001)])(
@@ -171,6 +253,7 @@ describe('loadAppConfig', () => {
       const config = loadAppConfig({ rootDir: tempDir })
 
       expect(config.telegram.botUsername).toBe('@testbot')
+      expect(config.telegram.allowedGroupIds).toEqual([])
       expect(config.news.feeds).toEqual(['https://example.com/feed.xml'])
       expect(config.llm.roles.chat.supportsVision).toBe(false)
     } finally {

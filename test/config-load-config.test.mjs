@@ -112,6 +112,7 @@ test('loadAppConfig deep-merges objects while replacing arrays and scalars', () 
       expect(config.telegram).toEqual({
         botUsername: 'override-bot',
         whitelistedUsers: ['carol'],
+        allowedGroupIds: [],
       })
       expect(config.news).toEqual({
         feeds: ['https://feeds.test/override.xml'],
