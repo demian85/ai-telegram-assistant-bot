@@ -26,6 +26,7 @@ Telegraf middleware routes authorized commands and ordinary text/photos into sco
 - `/abort` currently reports that no interactive operation is running; it does not cancel agent or scheduler work.
 - `scope.ts` normalizes supergroups to groups and rejects unsupported chat types.
 - Pass `ctx.chatScope` to agent/history operations; use `getSubscriptionChatId` for news subscriptions and preferences.
+- Pass trusted `ctx.chatType` as the third argument to agent invocations for ordinary text/photos and `/summary`, selecting the required private or group prompt. Never take the type from user/model input.
 - Allowed group invocation requires an explicit Telegram mention of the configured bot username (including photo caption entities) or a direct reply to this bot's message, identified by `reply_to_message.from.id === ctx.botInfo.id`.
 - Authorized private ordinary text invokes the agent directly without a mention.
 - Telegram privacy mode determines which group updates the bot receives; there is no application privacy-mode toggle.

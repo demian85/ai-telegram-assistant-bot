@@ -1,4 +1,9 @@
 import { z } from 'zod'
+import {
+  chatPromptVariables,
+  promptTemplateSchema,
+  summarizerPromptVariables,
+} from './prompt-template.js'
 
 export const telegramConfigSchema = z.strictObject({
   botUsername: z.string(),
@@ -24,12 +29,25 @@ export const llmRoleConfigSchema = z.strictObject({
   systemPrompt: z.string(),
 })
 
+export const chatRoleConfigSchema = llmRoleConfigSchema
+  .omit({ systemPrompt: true })
+  .extend({
+    systemPrompts: z.strictObject({
+      private: promptTemplateSchema(chatPromptVariables),
+      group: promptTemplateSchema(chatPromptVariables),
+    }),
+  })
+
+const summarizerRoleConfigSchema = llmRoleConfigSchema.extend({
+  systemPrompt: promptTemplateSchema(summarizerPromptVariables),
+})
+
 export const llmConfigSchema = z.strictObject({
   apiKeyEnvVar: z.string(),
   baseUrl: z.string(),
   roles: z.strictObject({
-    chat: llmRoleConfigSchema,
-    summarizer: llmRoleConfigSchema,
+    chat: chatRoleConfigSchema,
+    summarizer: summarizerRoleConfigSchema,
     newsPreferences: llmRoleConfigSchema,
   }),
 })

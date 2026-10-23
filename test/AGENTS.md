@@ -10,6 +10,7 @@ Offline Vitest behavior coverage with injected service doubles and a real agent/
 | Normalized conversation scope                                          | `telegram-scope.test.ts`                                |
 | Telegram reply/news formatting                                         | `telegram-util.test.ts`                                 |
 | Live multimodal input and persisted text shadows                       | `agent-content.test.ts`, `agent-memory.test.ts`         |
+| Chat prompts, variables, and configured memory generation              | `agent-prompts.test.ts`, `prompt-config.test.ts`        |
 | Agent/news tool integration; trusted scope to raw chat ID              | `agent-news-context.test.ts`                            |
 | Conversation persistence                                               | `conversation-store.test.ts`                            |
 | Summary levels, clearing, message counts                               | `summary-store.test.ts`                                 |

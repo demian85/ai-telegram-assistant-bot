@@ -1,11 +1,18 @@
 import { ChatOpenAI } from '@langchain/openai'
 import type { ConversationMessage } from '../redis/conversation-store.js'
 import type { MemorySummary } from './types.js'
+import {
+  renderPromptTemplate,
+  summarizerPromptVariables,
+} from '../config/prompt-template.js'
 
 export class Summarizer {
   private readonly model: ChatOpenAI
 
-  constructor(model: ChatOpenAI) {
+  constructor(
+    model: ChatOpenAI,
+    private readonly systemPrompt: string
+  ) {
     this.model = model
   }
 
@@ -27,17 +34,22 @@ export class Summarizer {
       monthly: 'month',
     }
 
-    const prompt = `Summarize the following conversation from the past ${levelDescriptions[level]} in 2-3 sentences.
-Focus on: key topics discussed, important decisions made, and any action items.
-Be concise but capture essential context for future reference.
-
-Conversation:
-${conversationText}
-
-Summary:`
+    const variables = {
+      level,
+      period: levelDescriptions[level],
+      startTime: new Date(startTime).toISOString(),
+      endTime: new Date(endTime).toISOString(),
+      messageCount: String(
+        messages.filter((message) => message.role !== 'system').length
+      ),
+    } satisfies Record<(typeof summarizerPromptVariables)[number], string>
+    const systemPrompt = renderPromptTemplate(this.systemPrompt, variables)
 
     try {
-      const response = await this.model.invoke(prompt)
+      const response = await this.model.invoke([
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: conversationText },
+      ])
       const summaryText =
         typeof response.content === 'string'
           ? response.content

@@ -57,7 +57,8 @@ async function main() {
     {
       agentModel: models.chat,
       summarizerModel: models.summarizer,
-      chatSystemPrompt: config.llm.roles.chat.systemPrompt,
+      chatSystemPrompts: config.llm.roles.chat.systemPrompts,
+      summarizerSystemPrompt: config.llm.roles.summarizer.systemPrompt,
       supportsVision: llmSupportsVision('chat', config),
       supportsWebSearch,
     },

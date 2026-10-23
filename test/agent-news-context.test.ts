@@ -67,12 +67,14 @@ test('agent invocation carries trusted chat context through the real tool graph'
     redis: harness.redis.asRedis(),
     agentModel: model,
     summarizerModel: model,
+    systemPrompts: { private: 'private-test', group: 'group-test' },
+    summarizerSystemPrompt: '{{period}}',
     supportsVision: false,
     tools: [createRecentNewsTool(query)],
   })
   await agent.initialize()
 
-  await agent.invokeLive('group:-123', { text: 'Get recent news' })
+  await agent.invokeLive('group:-123', { text: 'Get recent news' }, 'group')
 
   expect(retrieve).toHaveBeenCalledExactlyOnceWith(3, '-123')
 })

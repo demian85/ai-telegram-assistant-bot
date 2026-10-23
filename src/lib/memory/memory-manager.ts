@@ -22,11 +22,12 @@ export class MemoryManager {
   constructor(
     redis: Redis,
     model: ChatOpenAI,
+    summarizerSystemPrompt: string,
     config: Partial<MemoryConfig> = {}
   ) {
     this.conversationStore = new ConversationStore(redis)
     this.summaryStore = new SummaryStore(redis)
-    this.summarizer = new Summarizer(model)
+    this.summarizer = new Summarizer(model, summarizerSystemPrompt)
     this.config = { ...defaultMemoryConfig, ...config }
   }
 

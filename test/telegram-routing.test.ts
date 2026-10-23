@@ -40,6 +40,7 @@ afterEach(() => {
 })
 
 class StubAgentService {
+  readonly chatTypes: Array<'private' | 'group'> = []
   readonly persisted: Array<{
     chatId: string
     input: Record<string, unknown>
@@ -70,8 +71,10 @@ class StubAgentService {
 
   async invokeLive(
     chatId: string,
-    input: Record<string, unknown>
+    input: Record<string, unknown>,
+    chatType: 'private' | 'group'
   ): Promise<string> {
+    this.chatTypes.push(chatType)
     this.invocations.push({ chatId, input })
     return this.response
   }
@@ -115,7 +118,8 @@ function createBotHarness(
     {
       agentModel: {} as never,
       summarizerModel: {} as never,
-      chatSystemPrompt: 'You are a helpful assistant',
+      chatSystemPrompts: { private: 'private-test', group: 'group-test' },
+      summarizerSystemPrompt: '{{period}}',
       supportsVision: options.imageSupport ?? true,
     },
     {
@@ -327,6 +331,7 @@ test('invokes vision for a mentioned photo in a listed supergroup', async () => 
   )
 
   // Then the image reaches the agent under the normalized group scope.
+  expect(agentService.chatTypes).toEqual(['group'])
   expect(agentService.invocations).toEqual([
     {
       chatId: 'group:-100',
@@ -508,6 +513,7 @@ test('private text messages invoke the agent directly', async () => {
     })
   )
 
+  expect(agentService.chatTypes).toEqual(['private'])
   expect(agentService.invocations).toEqual([
     {
       chatId: 'private:100',

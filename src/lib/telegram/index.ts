@@ -5,6 +5,7 @@ import type { Redis } from 'ioredis'
 import type { StructuredTool } from '@langchain/core/tools'
 import logger from '@lib/logger.js'
 import { AgentService } from '@lib/agent/index.js'
+import type { ChatSystemPrompts } from '@lib/config/types.js'
 import {
   ChatSubscriptionStore,
   defaultNewsIntervalSeconds,
@@ -40,7 +41,8 @@ import {
 export interface BotModels {
   agentModel: ChatOpenAI
   summarizerModel: ChatOpenAI
-  chatSystemPrompt: string
+  readonly chatSystemPrompts: ChatSystemPrompts
+  readonly summarizerSystemPrompt: string
   supportsVision: boolean
   supportsWebSearch?: boolean
 }
@@ -175,7 +177,8 @@ export class Bot {
         supportsVision: models.supportsVision,
         supportsWebSearch: models.supportsWebSearch,
         tools: dependencies.tools ?? [],
-        systemPrompt: models.chatSystemPrompt,
+        systemPrompts: models.chatSystemPrompts,
+        summarizerSystemPrompt: models.summarizerSystemPrompt,
       })
     this.chatSubscriptionStore =
       dependencies.chatSubscriptionStore ??
@@ -662,9 +665,13 @@ export class Bot {
 
           const prompt = `Summarize the most relevant and important news from the following articles collected in the last 24 hours. Focus on the key developments and trends. Present your summary in a clear, concise format highlighting the most significant items:\n\n${newsContext}`
 
-          const response = await this.agentService?.invokeLive(ctx.chatScope, {
-            text: prompt,
-          })
+          const response = await this.agentService?.invokeLive(
+            ctx.chatScope,
+            {
+              text: prompt,
+            },
+            ctx.chatType
+          )
 
           await ctx.reply(
             formatTelegramMarkdownReply(
@@ -732,7 +739,8 @@ export class Bot {
     try {
       const response = await this.agentService.invokeLive(
         ctx.chatScope,
-        normalizedMessage
+        normalizedMessage,
+        ctx.chatType
       )
       await ctx.reply(formatTelegramMarkdownReply(response), {
         parse_mode: 'Markdown',

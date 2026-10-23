@@ -33,7 +33,7 @@ const validDefaultsConfig = {
       chat: {
         model: 'chat-model',
         supportsVision: false,
-        systemPrompt: 'You are a test assistant',
+        systemPrompts: { private: 'private-test', group: 'group-test' },
       },
       summarizer: {
         model: 'summarizer-model',
