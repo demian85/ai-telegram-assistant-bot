@@ -5,6 +5,7 @@ import {
   type NewsPreferenceGenerator,
 } from '@lib/news/preferences.js'
 import type { TelegramContext } from './types.js'
+import { sendTelegramMessage } from './send-message.js'
 
 export class NewsFilterCommand {
   private readonly pending = new Set<string>()
@@ -37,8 +38,8 @@ export class NewsFilterCommand {
             ? 'Compiled selection rules'
             : 'Active filter (using your original preferences)'
           : 'Default selection rules'
-        await this.replyInParts(
-          ctx,
+        await sendTelegramMessage(
+          ctx.reply.bind(ctx),
           `${label}:\n${active.instruction}\n\nYour original preferences take precedence. Use /newsfilter <what you like and dislike> to replace them, or /newsfilter reset for defaults.`
         )
         return
@@ -66,8 +67,8 @@ export class NewsFilterCommand {
       await ctx.sendChatAction('typing')
       const preference = await this.generator.generate(parsed.data)
       await this.preferences.save(chatId, preference)
-      await this.replyInParts(
-        ctx,
+      await sendTelegramMessage(
+        ctx.reply.bind(ctx),
         `News filter saved:\n${preference.instruction}\n\nThis replaces your previous preferences. Use /newsfilter to view them or /newsfilter reset for configured defaults.`
       )
     } catch (error) {
@@ -85,20 +86,5 @@ export class NewsFilterCommand {
     } finally {
       this.pending.delete(chatId)
     }
-  }
-
-  private async replyInParts(
-    ctx: Pick<TelegramContext, 'reply'>,
-    text: string
-  ): Promise<void> {
-    let part = ''
-    for (const character of text) {
-      if (part.length + character.length > 4096) {
-        await ctx.reply(part)
-        part = ''
-      }
-      part += character
-    }
-    if (part) await ctx.reply(part)
   }
 }

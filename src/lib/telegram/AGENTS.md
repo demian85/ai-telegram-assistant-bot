@@ -13,6 +13,7 @@ Telegraf middleware routes authorized commands and ordinary text/photos into sco
 | Group subscription permissions   | `index.ts`: `ensureSubscriptionCommandAccess`                  |
 | Chat identity                    | `scope.ts`, `types.ts`                                         |
 | Reply/news formatting            | `util.ts`                                                      |
+| Agent rich Markdown delivery     | `send-rich-message.ts`                                         |
 
 ## Routing and identity
 
@@ -39,7 +40,11 @@ Telegraf middleware routes authorized commands and ordinary text/photos into sco
 - Keep that URL transient: agent content helpers persist an image marker and caption as a text shadow.
 - Unmentioned photos in allowed groups persist without a reply unless they directly reply to this bot's message. For an invoked photo with unsupported vision, persist its shadow and send the limitation message.
 - `Bot.sendNewsArticle` throws for negative chat IDs absent from `telegram.allowedGroupIds`, before sending to Telegram. Positive private-chat IDs are unaffected by this group guard.
-- Use `formatTelegramMarkdownReply` with Telegram `parse_mode: 'Markdown'` for model responses.
+- Agent responses and `/summary` use native `sendRichMessage({ markdown })` through the existing grammY API client. Pass model Markdown unchanged; Telegram renders headings, emphasis, links, lists, code, and tables. Telegraf remains the only ingress/polling client, using the same bot token.
+- Rich replies use the 32768-character native limit. Split between complete Markdown sections, keeping fenced code together; oversized individual sections and native formatting rejections use literal rich paragraphs to preserve all content. Retain topic and reply context for every continuation.
+- `send-message.ts` wraps string replies in middleware and scheduled news sends: split long rendered text at paragraph, sentence, word, or Unicode boundaries, preserve formatting with entities, await chunks in order, and honor Telegram's `retry_after`. Use this shared sender for standalone command handlers too. Unparseable long formatting falls back to literal plain text.
+- Preserve caller-supplied `entities` and their payloads when splitting.
+- Oversized raw `MarkdownV2` strings without entities are rejected explicitly. Agent output uses native rich Markdown, which is a different format, and needs no MarkdownV2 parser or custom escaping.
 - Treat RSS titles, descriptions, sources, and URLs as literal data; scheduled articles, `/news`, and `/debugnews` use HTML formatting with escaped fields.
 - Reuse `formatNewsArticle` / `formatNewsArticles` for news formatting and their plain-text mode for summary input.
 

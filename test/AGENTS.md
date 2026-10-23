@@ -4,29 +4,30 @@ Offline Vitest behavior coverage with injected service doubles and a real agent/
 
 ## Test map
 
-| Behavior                                                               | File                                                    |
-| ---------------------------------------------------------------------- | ------------------------------------------------------- |
-| Message routing, vision fallback, group admin commands                 | `telegram-routing.test.ts`                              |
-| Normalized conversation scope                                          | `telegram-scope.test.ts`                                |
-| Telegram reply/news formatting                                         | `telegram-util.test.ts`                                 |
-| Live multimodal input and persisted text shadows                       | `agent-content.test.ts`, `agent-memory.test.ts`         |
-| Chat prompts, variables, and configured memory generation              | `agent-prompts.test.ts`, `prompt-config.test.ts`        |
-| Agent/news tool integration; trusted scope to raw chat ID              | `agent-news-context.test.ts`                            |
-| Conversation persistence                                               | `conversation-store.test.ts`                            |
-| Summary levels, clearing, message counts                               | `summary-store.test.ts`                                 |
-| Subscription cadence, delivery isolation, rollback                     | `news-subscriptions.test.ts`                            |
-| Config validation and merge behavior                                   | `config-loading.test.ts`, `config-load-config.test.mjs` |
-| Filter generation corruption and legacy migration                      | `news-filter-regression.test.ts`                        |
-| Shared doubles and update builders                                     | `test-helpers.ts`                                       |
-| Preference persistence, model schema, exclusion gates, cache revisions | `news-filter.test.ts`, `news-filter-helpers.ts`         |
-| Shared scheduling/query/tool filtering and stale results               | `news-filter-paths.test.ts`                             |
-| Retry ceilings, persisted cooldowns, concurrent evaluation sharing     | `news-filter-retries.test.ts`                           |
-| Bounded delivery evaluations, query limits and cache reuse             | `news-request-limits.test.ts`                           |
-| Expired article index cleanup, batching and re-storage races           | `news-store.test.ts`                                    |
-| Schedule reconciliation, startup failure, delivery log levels          | `news-scheduler.test.ts`                                |
-| Decision HTTP contract, retries, eligibility and unrounded coverage    | `news-decisions.test.ts`                                |
-| Independent decision and generative models                             | `news-decision-config.test.ts`                          |
-| Modern config, retired-field rejection and required preference role    | `config-modern.test.ts`                                 |
+| Behavior                                                                 | File                                                    |
+| ------------------------------------------------------------------------ | ------------------------------------------------------- |
+| Message routing, vision fallback, group admin commands                   | `telegram-routing.test.ts`                              |
+| Normalized conversation scope                                            | `telegram-scope.test.ts`                                |
+| Telegram reply/news formatting                                           | `telegram-util.test.ts`                                 |
+| Rich Markdown, chunk boundaries, literal fallback and native HTTP client | `telegram-rich-message.test.ts`                         |
+| Live multimodal input and persisted text shadows                         | `agent-content.test.ts`, `agent-memory.test.ts`         |
+| Chat prompts, variables, and configured memory generation                | `agent-prompts.test.ts`, `prompt-config.test.ts`        |
+| Agent/news tool integration; trusted scope to raw chat ID                | `agent-news-context.test.ts`                            |
+| Conversation persistence                                                 | `conversation-store.test.ts`                            |
+| Summary levels, clearing, message counts                                 | `summary-store.test.ts`                                 |
+| Subscription cadence, delivery isolation, rollback                       | `news-subscriptions.test.ts`                            |
+| Config validation and merge behavior                                     | `config-loading.test.ts`, `config-load-config.test.mjs` |
+| Filter generation corruption and legacy migration                        | `news-filter-regression.test.ts`                        |
+| Shared doubles and update builders                                       | `test-helpers.ts`                                       |
+| Preference persistence, model schema, exclusion gates, cache revisions   | `news-filter.test.ts`, `news-filter-helpers.ts`         |
+| Shared scheduling/query/tool filtering and stale results                 | `news-filter-paths.test.ts`                             |
+| Retry ceilings, persisted cooldowns, concurrent evaluation sharing       | `news-filter-retries.test.ts`                           |
+| Bounded delivery evaluations, query limits and cache reuse               | `news-request-limits.test.ts`                           |
+| Expired article index cleanup, batching and re-storage races             | `news-store.test.ts`                                    |
+| Schedule reconciliation, startup failure, delivery log levels            | `news-scheduler.test.ts`                                |
+| Decision HTTP contract, retries, eligibility and unrounded coverage      | `news-decisions.test.ts`                                |
+| Independent decision and generative models                               | `news-decision-config.test.ts`                          |
+| Modern config, retired-field rejection and required preference role      | `config-modern.test.ts`                                 |
 
 ## Harness conventions
 
