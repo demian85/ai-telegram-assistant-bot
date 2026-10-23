@@ -55,6 +55,7 @@
     "@telegraf/entity": "^0.7.0",
     "bullmq": "^5.73.4",
     "dotenv": "^16.3.1",
+    "grammy": "1.46.0",
     "ioredis": "^5.10.1",
     "langchain": "^1.3.1",
     "lodash": "^4.17.21",

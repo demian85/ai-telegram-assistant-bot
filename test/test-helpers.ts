@@ -181,6 +181,7 @@ type TestReply = {
 
 type TestMessage = {
   message_id: number
+  message_thread_id?: number
   date: number
   chat: {
     id: number
@@ -243,6 +244,18 @@ type Middleware = (
 type Handler = (ctx: TestContext) => Promise<unknown> | unknown
 
 export class FakeTelegraf {
+  readonly sentRichMessages: Array<{
+    chatId: Parameters<RichMessageClient['sendRichMessage']>[0]
+    content: Parameters<RichMessageClient['sendRichMessage']>[1]
+    extra?: Parameters<RichMessageClient['sendRichMessage']>[2]
+  }> = []
+
+  readonly richMessageApi: RichMessageClient = {
+    sendRichMessage: async (chatId, content, extra) => {
+      this.sentRichMessages.push({ chatId, content, extra })
+    },
+  }
+
   readonly botInfo = {
     id: 42,
     is_bot: true,
@@ -548,3 +561,4 @@ export function createPhotoUpdate(input: {
     },
   }
 }
+import type { RichMessageClient } from '../src/lib/telegram/send-rich-message.js'

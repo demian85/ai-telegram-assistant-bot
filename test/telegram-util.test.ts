@@ -1,8 +1,7 @@
 import { test, expect, describe } from 'vitest'
+import { parse_html } from '@telegraf/entity'
 import {
   escapeMarkdown,
-  fullMarkdown2TgMarkdown,
-  formatTelegramMarkdownReply,
   createMarkdownLink,
   formatNewsArticle,
   formatNewsArticles,
@@ -53,82 +52,33 @@ describe('escapeMarkdown', () => {
   })
 })
 
-describe('fullMarkdown2TgMarkdown', () => {
-  test('returns empty string for empty input', () => {
-    expect(fullMarkdown2TgMarkdown('')).toBe('')
-  })
+test.each([
+  '**literal stars** and _underscores_',
+  'C++ C# .NET Node.js @scope/package',
+  '<b>untrusted tag</b> & "quotes"',
+  '| Model | Price |\n| --- | --- |\n| A | $10 |',
+  '👩🏽‍💻 e\u0301 and C:\\path\\file',
+])('keeps article title and description literal in HTML: %s', (value) => {
+  const url = 'https://example.com/?a=1&b=2'
+  const html = formatNewsArticle(
+    {
+      title: value,
+      description: value,
+      source: 'Source & more',
+      url,
+      publishedAt: new Date('2026-10-23T12:00:00Z'),
+    },
+    { mode: 'html', descriptionMaxLength: 0 }
+  )
 
-  test('converts **bold** to *bold*', () => {
-    expect(fullMarkdown2TgMarkdown('**bold text**')).toBe('*bold text*')
-    expect(fullMarkdown2TgMarkdown('**multiple** **bold** **words**')).toBe(
-      '*multiple* *bold* *words*'
-    )
-  })
+  const parsed = parse_html(html)
 
-  test('converts headers to bold', () => {
-    expect(fullMarkdown2TgMarkdown('# Header 1')).toBe('*Header 1*')
-    expect(fullMarkdown2TgMarkdown('## Header 2')).toBe('*Header 2*')
-    expect(fullMarkdown2TgMarkdown('### Header 3')).toBe('*Header 3*')
-  })
-
-  test('converts horizontal rules to visual separator', () => {
-    expect(fullMarkdown2TgMarkdown('---')).toBe('───────────────')
-    expect(fullMarkdown2TgMarkdown('Some text\n---\nMore text')).toBe(
-      'Some text\n───────────────\nMore text'
-    )
-  })
-
-  test('cleans up excessive newlines', () => {
-    const input = 'Line 1\n\n\n\n\nLine 2'
-    const result = fullMarkdown2TgMarkdown(input)
-    expect(result).toBe('Line 1\n\n\nLine 2')
-  })
-
-  test('preserves up to 3 consecutive newlines', () => {
-    const input = 'Line 1\n\n\nLine 2'
-    expect(fullMarkdown2TgMarkdown(input)).toBe(input)
-  })
-
-  test('handles complex markdown conversion', () => {
-    const input = `# Title
-
-**Bold statement**
-
-Some regular text.
-
----
-
-More content.`
-    const result = fullMarkdown2TgMarkdown(input)
-    expect(result).toContain('*Title*')
-    expect(result).toContain('*Bold statement*')
-    expect(result).toContain('───────────────')
-  })
-})
-
-describe('formatTelegramMarkdownReply', () => {
-  test('combines markdown conversion and escaping', () => {
-    const input = '**Hello** [world]'
-    const result = formatTelegramMarkdownReply(input)
-    expect(result).toBe('*Hello* \\[world\\]')
-  })
-
-  test('handles real-world LLM responses', () => {
-    const input = `Here's what I found:
-
-**Key Points:**
-- Point 1
-- Point 2
-
-Use \`function()\` to call it.`
-    const result = formatTelegramMarkdownReply(input)
-    expect(result).toContain('*Key Points:*')
-    expect(result).toContain('`function()`')
-  })
-
-  test('trims whitespace from result', () => {
-    expect(formatTelegramMarkdownReply('  hello world  ')).toBe('hello world')
-  })
+  expect(parsed.text).toContain(value)
+  expect(parsed.text.split(value)).toHaveLength(3)
+  expect(parsed.entities).toEqual([
+    { type: 'bold', offset: 0, length: value.length },
+    expect.objectContaining({ type: 'text_link', url }),
+  ])
 })
 
 describe('createMarkdownLink', () => {

@@ -3,10 +3,14 @@ import {
   NewsPreferenceStore,
   type NewsPreferenceGenerator,
 } from '../src/lib/news/preferences.js'
-import { preference } from './news-filter-helpers.js'
+import { preference, filterHarness, article } from './news-filter-helpers.js'
 import type { Config } from '../src/lib/types.js'
 import { Bot } from '../src/lib/telegram/index.js'
-import { ChatSubscriptionStore } from '../src/lib/news/index.js'
+import {
+  ChatSubscriptionStore,
+  NewsQueryService,
+  NewsStore,
+} from '../src/lib/news/index.js'
 import {
   FakeTelegraf,
   InMemoryRedis,
@@ -88,6 +92,7 @@ function createBotHarness(
   options: {
     imageSupport?: boolean
     response?: string
+    newsQueryService?: NewsQueryService
     generator?: Pick<NewsPreferenceGenerator, 'generate'>
     allowedGroupIds?: string[]
     whitelistedUsers?: string[]
@@ -128,11 +133,13 @@ function createBotHarness(
     },
     {
       telegraf: telegraf as never,
+      richMessageApi: telegraf.richMessageApi,
       redis: redis.asRedis(),
       agentService: agentService as never,
       chatSubscriptionStore: subscriptions,
       newsPreferences: preferences,
       newsPreferenceGenerator: options.generator,
+      newsQueryService: options.newsQueryService,
     }
   )
 
@@ -282,7 +289,7 @@ test.each(['group', 'supergroup'] as const)(
 
     // Then group authorization is independent of the private whitelist.
     expect((await subscriptions.getSubscription('-100'))?.enabled).toBe(true)
-    expect(ctx.replyLog).toHaveLength(1)
+    expect(ctx.replyLog.length + telegraf.sentRichMessages.length).toBe(1)
   }
 )
 
@@ -313,7 +320,7 @@ test.each([
     // Then private username authorization still controls invocation.
     expect(agentService.invocations).toHaveLength(allowed ? 1 : 0)
     expect(ctx.chatActions).toEqual(allowed ? ['typing'] : [])
-    expect(ctx.replyLog).toHaveLength(1)
+    expect(ctx.replyLog.length + telegraf.sentRichMessages.length).toBe(1)
   }
 )
 
@@ -347,7 +354,9 @@ test('invokes vision for a mentioned photo in a listed supergroup', async () => 
     },
   ])
   expect(ctx.chatActions).toEqual(['upload_photo'])
-  expect(ctx.replyLog[0]?.text).toBe('agent reply')
+  expect(telegraf.sentRichMessages[0]?.content).toEqual({
+    markdown: 'agent reply',
+  })
 })
 
 test.each([
@@ -528,7 +537,9 @@ test('private text messages invoke the agent directly', async () => {
     },
   ])
   expect(ctx.chatActions).toEqual(['typing'])
-  expect(ctx.replyLog[0]?.text).toBe('agent reply')
+  expect(telegraf.sentRichMessages[0]?.content).toEqual({
+    markdown: 'agent reply',
+  })
 })
 
 test('group text without a mention is persisted for memory without triggering a reply', async () => {
@@ -581,7 +592,9 @@ test('group text with an explicit mention invokes the agent with sender-attribut
     },
   ])
   expect(ctx.chatActions).toEqual(['typing'])
-  expect(ctx.replyLog[0]?.text).toBe('agent reply')
+  expect(telegraf.sentRichMessages[0]?.content).toEqual({
+    markdown: 'agent reply',
+  })
 })
 
 const previousBotMessage = {
@@ -623,7 +636,9 @@ test.each(['group', 'supergroup'] as const)(
       },
     ])
     expect(ctx.chatActions).toEqual(['typing'])
-    expect(ctx.replyLog[0]?.text).toBe('agent reply')
+    expect(telegraf.sentRichMessages[0]?.content).toEqual({
+      markdown: 'agent reply',
+    })
   }
 )
 
@@ -645,6 +660,8 @@ test.each(['group', 'supergroup'] as const)(
       })
     )
 
+    expect(ctx.replyLog).toEqual([])
+
     // Then the reply reaches the same agent image path as a mention.
     expect(agentService.invocations).toEqual([
       {
@@ -656,7 +673,9 @@ test.each(['group', 'supergroup'] as const)(
         },
       },
     ])
-    expect(ctx.replyLog[0]?.text).toBe('agent reply')
+    expect(telegraf.sentRichMessages[0]?.content).toEqual({
+      markdown: 'agent reply',
+    })
   }
 )
 
@@ -742,7 +761,9 @@ test('private photos use the live vision path when the model supports image inpu
     },
   ])
   expect(ctx.chatActions).toEqual(['upload_photo'])
-  expect(ctx.replyLog[0]?.text).toBe('agent reply')
+  expect(telegraf.sentRichMessages[0]?.content).toEqual({
+    markdown: 'agent reply',
+  })
 })
 
 test('private photos persist context and warn when the model does not support vision', async () => {
@@ -847,8 +868,8 @@ test('scheduled news with Markdown-looking RSS fields sends parseable literal te
 })
 
 test('delivers an oversized agent reply as consecutive formatted messages', async () => {
-  const visible = 'A useful explanation. '.repeat(700)
-  const { telegraf } = createBotHarness({ response: `**${visible}**` })
+  const response = '**A useful explanation.**\n\n'.repeat(2000)
+  const { telegraf } = createBotHarness({ response })
 
   const ctx = await telegraf.dispatch(
     createTextUpdate({
@@ -859,14 +880,75 @@ test('delivers an oversized agent reply as consecutive formatted messages', asyn
     })
   )
 
-  expect(ctx.replyLog.length).toBeGreaterThan(1)
-  expect(ctx.replyLog.map(({ text }) => text).join('')).toBe(visible)
-  for (const { text, extra } of ctx.replyLog) {
-    expect(text.length).toBeLessThanOrEqual(4096)
-    expect(extra?.entities).toEqual([
-      expect.objectContaining({ type: 'bold', offset: 0, length: text.length }),
-    ])
+  expect(ctx.replyLog).toEqual([])
+  expect(telegraf.sentRichMessages.length).toBeGreaterThan(1)
+  expect(
+    telegraf.sentRichMessages.map(({ content }) => content.markdown).join('')
+  ).toBe(response)
+  for (const { content, extra } of telegraf.sentRichMessages) {
+    expect(content.markdown?.length).toBeLessThanOrEqual(32768)
+    expect(extra?.reply_parameters?.message_id).toBe(ctx.message?.message_id)
   }
+})
+
+test('sends a group agent answer as native rich Markdown in the original topic', async () => {
+  const response =
+    '# Comparison\n\n| Model | Price |\n| --- | --- |\n| A | $10 |'
+  const { telegraf } = createBotHarness({ response })
+  const update = createTextUpdate({
+    chatId: -100,
+    chatType: 'supergroup',
+    username: 'alice',
+    text: '@bot compare',
+    entities: [{ type: 'mention', offset: 0, length: 4 }],
+  })
+  if (!update.message) throw new TypeError('Expected a message update')
+  update.message.message_thread_id = 77
+
+  const ctx = await telegraf.dispatch(update)
+
+  expect(ctx.replyLog).toEqual([])
+  expect(telegraf.sentRichMessages).toEqual([
+    {
+      chatId: '-100',
+      content: { markdown: response },
+      extra: {
+        message_thread_id: 77,
+        reply_parameters: {
+          message_id: update.message.message_id,
+          allow_sending_without_reply: true,
+        },
+      },
+    },
+  ])
+})
+
+test('uses native rich Markdown for generated news summaries too', async () => {
+  const news = filterHarness()
+  const store = new NewsStore(news.redis.asRedis())
+  await store.storeItem({
+    ...article('summary-article'),
+    fetchedAt: new Date(),
+  })
+  const newsQueryService = new NewsQueryService({
+    redis: news.redis.asRedis(),
+    filter: news.filter,
+  })
+  const response =
+    '## Summary\n\n**News** with `file_name` and [details](https://example.com)'
+  const { telegraf } = createBotHarness({ response, newsQueryService })
+
+  const ctx = await telegraf.dispatch(
+    createTextUpdate({
+      chatId: 100,
+      chatType: 'private',
+      username: 'alice',
+      text: '/summary',
+    })
+  )
+
+  expect(ctx.replyLog).toEqual([])
+  expect(telegraf.sentRichMessages[0]?.content).toEqual({ markdown: response })
 })
 
 test('splits scheduled news while preserving literal RSS content and links', async () => {

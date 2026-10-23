@@ -42,32 +42,6 @@ export function escapeMarkdown(text: string): string {
   return result
 }
 
-export function fullMarkdown2TgMarkdown(input: string): string {
-  if (!input) return ''
-
-  return (
-    input
-      // Convert standard markdown bold **text** to Telegram *text*
-      .replace(/\*\*([^*]+)\*\*/g, '*$1*')
-      // Convert headers (# text) to bold (*text*)
-      .replace(/^#+ *(.+)$/gm, '*$1*')
-      // Convert horizontal rules to visual separator
-      .replace(/^---+$/gm, '───────────────')
-      // Clean up excessive newlines
-      .replace(/\n{4,}/g, '\n\n\n')
-  )
-}
-
-export function formatTelegramMarkdownReply(input: string): string {
-  if (!input) return ''
-
-  // First convert standard markdown to Telegram format
-  const converted = fullMarkdown2TgMarkdown(input)
-
-  // Then escape any problematic characters while preserving intentional formatting
-  return escapeMarkdown(converted).trim()
-}
-
 export function createMarkdownLink(text: string, url: string): string {
   if (!url) return escapeMarkdown(text)
   const safeUrl = url.replace(/\)/g, '%29')

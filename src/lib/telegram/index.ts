@@ -1,4 +1,9 @@
 import { Telegraf } from 'telegraf'
+import { Api } from 'grammy'
+import {
+  sendRichMarkdown,
+  type RichMessageClient,
+} from './send-rich-message.js'
 import { sendTelegramMessage } from './send-message.js'
 import { message } from 'telegraf/filters'
 import type { ChatOpenAI } from '@langchain/openai'
@@ -32,7 +37,6 @@ import {
 } from '@lib/news/preferences.js'
 import { NewsFilterCommand } from './news-filter-command.js'
 import {
-  formatTelegramMarkdownReply,
   escapeHtml,
   createHtmlLink,
   formatNewsArticles,
@@ -91,6 +95,7 @@ interface BotRuntime {
 }
 
 export interface BotDependencies {
+  readonly richMessageApi?: RichMessageClient
   newsPreferences?: NewsPreferenceStore
   newsPreferenceGenerator?: Pick<NewsPreferenceGenerator, 'generate'>
   telegraf?: BotRuntime
@@ -104,6 +109,7 @@ export interface BotDependencies {
 export class Bot {
   private config
   private bot: BotRuntime
+  private readonly richMessageApi: RichMessageClient
   private agentService: AgentService | null = null
   private readonly chatSubscriptionStore: ChatSubscriptionStore
   private readonly newsQueryService: NewsQueryService | null = null
@@ -166,6 +172,9 @@ export class Bot {
     this.bot =
       dependencies.telegraf ??
       new Telegraf<TelegramContext>(process.env.TELEGRAM_BOT_TOKEN!)
+    this.richMessageApi =
+      dependencies.richMessageApi ??
+      new Api(process.env.TELEGRAM_BOT_TOKEN ?? '')
 
     const redisClient = dependencies.redis ?? getRedisClient()
 
@@ -683,13 +692,9 @@ export class Bot {
             ctx.chatType
           )
 
-          await ctx.reply(
-            formatTelegramMarkdownReply(
-              response || 'Sorry, I could not generate a summary at this time.'
-            ),
-            {
-              parse_mode: 'Markdown',
-            }
+          await this.replyWithAgentMarkdown(
+            ctx,
+            response || 'Sorry, I could not generate a summary at this time.'
           )
         } catch (error) {
           logger.error(
@@ -752,9 +757,7 @@ export class Bot {
         normalizedMessage,
         ctx.chatType
       )
-      await ctx.reply(formatTelegramMarkdownReply(response), {
-        parse_mode: 'Markdown',
-      })
+      await this.replyWithAgentMarkdown(ctx, response)
     } catch (error) {
       logger.error(
         { error, chatScope: ctx.chatScope },
@@ -762,6 +765,32 @@ export class Bot {
       )
       await ctx.reply('Sorry, I encountered an error. Please try again.')
     }
+  }
+
+  private async replyWithAgentMarkdown(
+    ctx: TelegramContext,
+    text: string
+  ): Promise<void> {
+    await sendRichMarkdown(
+      (content) =>
+        this.richMessageApi.sendRichMessage(
+          this.getSubscriptionChatId(ctx),
+          content,
+          {
+            message_thread_id:
+              ctx.message && 'message_thread_id' in ctx.message
+                ? ctx.message.message_thread_id
+                : undefined,
+            reply_parameters: ctx.message
+              ? {
+                  message_id: ctx.message.message_id,
+                  allow_sending_without_reply: true,
+                }
+              : undefined,
+          }
+        ),
+      text
+    )
   }
 
   private async handleIncomingMessage(

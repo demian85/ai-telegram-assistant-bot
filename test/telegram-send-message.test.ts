@@ -133,6 +133,55 @@ test('does not split short rendered text because of HTML escaping overhead', asy
   })
 })
 
+test('slices caller-supplied entities without changing their payloads', async () => {
+  const text = 'x'.repeat(9000)
+  const entities = [
+    { type: 'bold', offset: 0, length: 9000 },
+    { type: 'text_link', offset: 4090, length: 30, url: 'https://example.com' },
+    {
+      type: 'text_mention',
+      offset: 8200,
+      length: 5,
+      user: { id: 42, is_bot: false, first_name: 'Alice' },
+    },
+  ] as const
+  const send = vi.fn(
+    async (_text: string, _extra?: Record<string, unknown>) => undefined
+  )
+
+  await sendTelegramMessage(send, text, {
+    entities: [...entities],
+    message_thread_id: 7,
+  })
+
+  expect(send.mock.calls.map(([part]) => part).join('')).toBe(text)
+  expect(send.mock.calls.map(([, options]) => options?.entities)).toEqual([
+    [
+      { type: 'bold', offset: 0, length: 4096 },
+      { ...entities[1], length: 6 },
+    ],
+    [
+      { type: 'bold', offset: 0, length: 4096 },
+      { ...entities[1], offset: 0, length: 24 },
+    ],
+    [
+      { type: 'bold', offset: 0, length: 808 },
+      { ...entities[2], offset: 8 },
+    ],
+  ])
+  expect(entities[1].offset).toBe(4090)
+})
+
+test('rejects oversized raw MarkdownV2 without sending literal markup', async () => {
+  const send = vi.fn(async (_text: string) => undefined)
+  await expect(
+    sendTelegramMessage(send, '*' + 'text '.repeat(1000) + '*', {
+      parse_mode: 'MarkdownV2',
+    })
+  ).rejects.toBeInstanceOf(RangeError)
+  expect(send).not.toHaveBeenCalled()
+})
+
 test('delivers all text when long model output has invalid Markdown', async () => {
   const input = '*Unclosed bold ' + 'full explanation '.repeat(600)
   const received: string[] = []
@@ -207,57 +256,65 @@ test('stops on a permanent send failure without resending delivered parts', asyn
   expect(send).toHaveBeenCalledTimes(2)
 })
 
-test('sends bounded payloads through the real Telegraf HTTP client', async () => {
-  const payloads: unknown[] = []
-  const server = createServer(async (req, res) => {
-    const buffers: Buffer[] = []
-    for await (const chunk of req) buffers.push(Buffer.from(chunk))
-    const payload: unknown = JSON.parse(Buffer.concat(buffers).toString())
-    payloads.push(payload)
-    res.setHeader('content-type', 'application/json')
-    res.end(
-      JSON.stringify({ ok: true, result: { message_id: payloads.length } })
-    )
-  })
-  server.listen(0, '127.0.0.1')
-  await once(server, 'listening')
-  const address = server.address()
-  if (!address || typeof address === 'string')
-    throw new Error('No HTTP test address')
-  const telegram = new Telegram('123:test-token', {
-    apiRoot: `http://127.0.0.1:${address.port}`,
-  })
-  const text = 'Complete explanation. '.repeat(1000)
-
-  try {
-    await sendTelegramMessage(
-      (part, extra) => telegram.sendMessage(100, part, extra),
-      `<b>${text}</b>`,
-      { parse_mode: 'HTML', message_thread_id: 7 }
-    )
-
-    const schema = z.object({
-      text: z.string().min(1).max(4096),
-      chat_id: z.literal(100),
-      message_thread_id: z.literal(7),
-      entities: z.array(
-        z.object({
-          type: z.literal('bold'),
-          offset: z.literal(0),
-          length: z.number(),
-        })
-      ),
+test.each(['HTML', 'entities'] as const)(
+  'sends bounded %s payloads through the real Telegraf HTTP client',
+  async (mode) => {
+    const payloads: unknown[] = []
+    const server = createServer(async (req, res) => {
+      const buffers: Buffer[] = []
+      for await (const chunk of req) buffers.push(Buffer.from(chunk))
+      const payload: unknown = JSON.parse(Buffer.concat(buffers).toString())
+      payloads.push(payload)
+      res.setHeader('content-type', 'application/json')
+      res.end(
+        JSON.stringify({ ok: true, result: { message_id: payloads.length } })
+      )
     })
-    const sent = payloads.map((payload) => schema.parse(payload))
-    expect(sent.length).toBeGreaterThan(1)
-    expect(sent.map(({ text }) => text).join('')).toBe(text)
-    expect(
-      sent.every(({ text, entities }) => entities[0]?.length === text.length)
-    ).toBe(true)
-  } finally {
-    server.closeAllConnections()
-    await new Promise<void>((resolve, reject) =>
-      server.close((error) => (error ? reject(error) : resolve()))
-    )
+    server.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    const address = server.address()
+    if (!address || typeof address === 'string')
+      throw new Error('No HTTP test address')
+    const telegram = new Telegram('123:test-token', {
+      apiRoot: `http://127.0.0.1:${address.port}`,
+    })
+    const text = 'Complete explanation. '.repeat(1000)
+
+    try {
+      await sendTelegramMessage(
+        (part, extra) => telegram.sendMessage(100, part, extra),
+        mode === 'HTML' ? `<b>${text}</b>` : text,
+        mode === 'entities'
+          ? {
+              entities: [{ type: 'bold', offset: 0, length: text.length }],
+              message_thread_id: 7,
+            }
+          : { parse_mode: mode, message_thread_id: 7 }
+      )
+
+      const schema = z.object({
+        text: z.string().min(1).max(4096),
+        chat_id: z.literal(100),
+        message_thread_id: z.literal(7),
+        entities: z.array(
+          z.object({
+            type: z.literal('bold'),
+            offset: z.literal(0),
+            length: z.number(),
+          })
+        ),
+      })
+      const sent = payloads.map((payload) => schema.parse(payload))
+      expect(sent.length).toBeGreaterThan(1)
+      expect(sent.map(({ text }) => text).join('')).toBe(text)
+      expect(
+        sent.every(({ text, entities }) => entities[0]?.length === text.length)
+      ).toBe(true)
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve()))
+      )
+    }
   }
-})
+)
