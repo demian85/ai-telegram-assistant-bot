@@ -16,7 +16,7 @@ Chat, summaries, and preference generation use OpenAI-compatible LLMs. News filt
 
 - Groups and supergroups are denied by default; explicitly list their numeric chat IDs in `telegram.allowedGroupIds`
 - In allowed groups, text and photo messages are persisted for shared memory
-- The bot only replies when it is explicitly mentioned
+- The bot replies when explicitly mentioned or when someone replies directly to one of its messages, so anyone can continue the conversation without mentioning it again
 - Messages are stored with sender attribution, for example `Alice: can you summarize this?`, so shared context stays readable
 - News subscription commands are limited to group admins
 

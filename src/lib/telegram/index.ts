@@ -869,7 +869,11 @@ export class Bot {
     }
 
     const text = ctx.parsedMessageText?.trim() ?? ''
-    const shouldInvoke = ctx.chatType === 'private' || ctx.isMention
+    const isReplyToBot =
+      'reply_to_message' in ctx.message &&
+      ctx.message.reply_to_message?.from?.id === ctx.botInfo.id
+    const shouldInvoke =
+      ctx.chatType === 'private' || ctx.isMention || isReplyToBot
 
     if ('photo' in ctx.message && Array.isArray(ctx.message.photo)) {
       const largestPhoto = ctx.message.photo[ctx.message.photo.length - 1]
@@ -958,7 +962,7 @@ export class Bot {
   private getIngressSummary(ctx: TelegramContext): string {
     return ctx.chatType === 'private'
       ? 'Ingress: private chats invoke the agent directly on each text or photo message.'
-      : 'Ingress: group text and photo messages are persisted for shared memory, and the agent only replies when the bot is explicitly mentioned.'
+      : 'Ingress: group text and photo messages are persisted for shared memory, and the agent replies when explicitly mentioned or when you reply to one of its messages.'
   }
 
   private getSubscriptionSummary(

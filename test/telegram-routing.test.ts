@@ -574,6 +574,140 @@ test('group text with an explicit mention invokes the agent with sender-attribut
   expect(ctx.replyLog[0]?.text).toBe('agent reply')
 })
 
+const previousBotMessage = {
+  message_id: 99,
+  date: 1,
+  chat: { id: -100, type: 'group' },
+  from: {
+    id: 42,
+    is_bot: true,
+    first_name: 'Bot',
+    username: 'previous_bot_name',
+  },
+  text: 'agent reply',
+} as const
+
+test.each(['group', 'supergroup'] as const)(
+  'answers an unmentioned reply to its own message in a listed %s',
+  async (chatType) => {
+    // Given a listed group with a previous message from this bot.
+    const { telegraf, agentService } = createBotHarness()
+
+    // When another member replies without mentioning the bot.
+    const ctx = await telegraf.dispatch(
+      createTextUpdate({
+        chatId: -100,
+        chatType,
+        username: 'bob',
+        firstName: 'Bob',
+        text: 'Can you explain more?',
+        replyToMessage: previousBotMessage,
+      })
+    )
+
+    // Then the reply continues the shared group conversation.
+    expect(agentService.invocations).toEqual([
+      {
+        chatId: 'group:-100',
+        input: { text: 'Bob: Can you explain more?', shouldInvoke: true },
+      },
+    ])
+    expect(ctx.chatActions).toEqual(['typing'])
+    expect(ctx.replyLog[0]?.text).toBe('agent reply')
+  }
+)
+
+test.each(['group', 'supergroup'] as const)(
+  'answers an unmentioned photo reply to its own message in a listed %s',
+  async (chatType) => {
+    // Given a listed group and a vision-capable model.
+    const { telegraf, agentService } = createBotHarness()
+
+    // When a member replies to this bot with a photo and no mention.
+    const ctx = await telegraf.dispatch(
+      createPhotoUpdate({
+        chatId: -100,
+        chatType,
+        username: 'alice',
+        caption: 'What about this?',
+        fileIds: ['reply-photo'],
+        replyToMessage: previousBotMessage,
+      })
+    )
+
+    // Then the reply reaches the same agent image path as a mention.
+    expect(agentService.invocations).toEqual([
+      {
+        chatId: 'group:-100',
+        input: {
+          text: 'Alice: What about this?',
+          imageUrl: 'https://files.test/reply-photo',
+          shouldInvoke: true,
+        },
+      },
+    ])
+    expect(ctx.replyLog[0]?.text).toBe('agent reply')
+  }
+)
+
+test.each([
+  { id: 1, is_bot: false, first_name: 'Alice', username: 'alice' },
+  { id: 43, is_bot: true, first_name: 'Other bot', username: 'bot' },
+])('does not answer an unmentioned reply to $username ($id)', async (from) => {
+  // Given a listed group and a message from someone other than this bot.
+  const { telegraf, agentService } = createBotHarness()
+
+  // When a member replies to that message without mentioning this bot.
+  const ctx = await telegraf.dispatch(
+    createTextUpdate({
+      chatId: -100,
+      chatType: 'group',
+      username: 'bob',
+      firstName: 'Bob',
+      text: 'Tell me more',
+      replyToMessage: { ...previousBotMessage, from },
+    })
+  )
+
+  // Then the message is only stored as passive group context.
+  expect(agentService.invocations).toEqual([])
+  expect(agentService.persisted).toEqual([
+    {
+      chatId: 'group:-100',
+      input: { text: 'Bob: Tell me more', shouldInvoke: false },
+    },
+  ])
+  expect(ctx.replyLog).toEqual([])
+})
+
+test.each(['group', 'supergroup'] as const)(
+  'ignores replies to its own messages in an unlisted %s',
+  async (chatType) => {
+    // Given a group absent from the allowlist.
+    const { telegraf, agentService } = createBotHarness({
+      allowedGroupIds: [],
+    })
+
+    // When someone replies to a previous bot message.
+    const ctx = await telegraf.dispatch(
+      createTextUpdate({
+        chatId: -100,
+        chatType,
+        username: 'alice',
+        text: 'Tell me more',
+        replyToMessage: previousBotMessage,
+      })
+    )
+
+    // Then authorization still stops ingress before any side effects.
+    expect(ctx.parsedMessageText).toBeUndefined()
+    expect(agentService.invocations).toEqual([])
+    expect(agentService.persisted).toEqual([])
+    expect(ctx.replyLog).toEqual([])
+    expect(ctx.chatActions).toEqual([])
+  }
+)
+
 test('private photos use the live vision path when the model supports image input', async () => {
   const { telegraf, agentService } = createBotHarness({ imageSupport: true })
 

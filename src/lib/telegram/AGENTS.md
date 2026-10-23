@@ -26,7 +26,7 @@ Telegraf middleware routes authorized commands and ordinary text/photos into sco
 - `/abort` currently reports that no interactive operation is running; it does not cancel agent or scheduler work.
 - `scope.ts` normalizes supergroups to groups and rejects unsupported chat types.
 - Pass `ctx.chatScope` to agent/history operations; use `getSubscriptionChatId` for news subscriptions and preferences.
-- Allowed group invocation requires an explicit Telegram mention of the configured bot username, including photo caption entities.
+- Allowed group invocation requires an explicit Telegram mention of the configured bot username (including photo caption entities) or a direct reply to this bot's message, identified by `reply_to_message.from.id === ctx.botInfo.id`.
 - Authorized private ordinary text invokes the agent directly without a mention.
 - Telegram privacy mode determines which group updates the bot receives; there is no application privacy-mode toggle.
 - Strip explicit bot mentions from model input and preserve existing sender attribution for parsed group text and captions.
@@ -36,7 +36,7 @@ Telegraf middleware routes authorized commands and ordinary text/photos into sco
 
 - Select the last photo size and resolve its file link for the current invocation.
 - Keep that URL transient: agent content helpers persist an image marker and caption as a text shadow.
-- Unmentioned photos in allowed groups persist without a reply. For an invoked photo with unsupported vision, persist its shadow and send the limitation message.
+- Unmentioned photos in allowed groups persist without a reply unless they directly reply to this bot's message. For an invoked photo with unsupported vision, persist its shadow and send the limitation message.
 - `Bot.sendNewsArticle` throws for negative chat IDs absent from `telegram.allowedGroupIds`, before sending to Telegram. Positive private-chat IDs are unaffected by this group guard.
 - Use `formatTelegramMarkdownReply` with Telegram `parse_mode: 'Markdown'` for model responses.
 - Treat RSS titles, descriptions, sources, and URLs as literal data; scheduled articles, `/news`, and `/debugnews` use HTML formatting with escaped fields.
