@@ -41,7 +41,7 @@ export async function sendRichMarkdown(
   send: (content: RichMessageContent) => Promise<unknown>,
   markdown: string
 ): Promise<void> {
-  if (!markdown.trim()) return
+  if (!markdown.trim()) throw new Error('Cannot send a blank rich message')
 
   const sendLiteral = async (text: string): Promise<void> => {
     for (const part of splitTelegramText(text, RICH_MESSAGE_LIMIT)) {

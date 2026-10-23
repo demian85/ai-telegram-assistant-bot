@@ -867,6 +867,27 @@ test('scheduled news with Markdown-looking RSS fields sends parseable literal te
   ])
 })
 
+test.each(['', ' \t\n'])(
+  'sends an explanatory reply for blank agent output %j',
+  async (response) => {
+    const { telegraf } = createBotHarness({ response })
+
+    const ctx = await telegraf.dispatch(
+      createTextUpdate({
+        chatId: 100,
+        chatType: 'private',
+        username: 'alice',
+        text: 'Hello',
+      })
+    )
+
+    expect(ctx.replyLog.map(({ text }) => text)).toEqual([
+      'Sorry, I encountered an error. Please try again.',
+    ])
+    expect(telegraf.sentRichMessages).toEqual([])
+  }
+)
+
 test('delivers an oversized agent reply as consecutive formatted messages', async () => {
   const response = '**A useful explanation.**\n\n'.repeat(2000)
   const { telegraf } = createBotHarness({ response })
@@ -949,6 +970,37 @@ test('uses native rich Markdown for generated news summaries too', async () => {
 
   expect(ctx.replyLog).toEqual([])
   expect(telegraf.sentRichMessages[0]?.content).toEqual({ markdown: response })
+})
+
+test('sends an explanatory reply for a whitespace-only news summary', async () => {
+  const news = filterHarness()
+  const store = new NewsStore(news.redis.asRedis())
+  await store.storeItem({
+    ...article('summary-article'),
+    fetchedAt: new Date(),
+  })
+  const newsQueryService = new NewsQueryService({
+    redis: news.redis.asRedis(),
+    filter: news.filter,
+  })
+  const { telegraf } = createBotHarness({
+    response: ' \t\n',
+    newsQueryService,
+  })
+
+  const ctx = await telegraf.dispatch(
+    createTextUpdate({
+      chatId: 100,
+      chatType: 'private',
+      username: 'alice',
+      text: '/summary',
+    })
+  )
+
+  expect(ctx.replyLog.map(({ text }) => text)).toEqual([
+    "Sorry, I couldn't generate a summary right now. Please try again later.",
+  ])
+  expect(telegraf.sentRichMessages).toEqual([])
 })
 
 test('splits scheduled news while preserving literal RSS content and links', async () => {

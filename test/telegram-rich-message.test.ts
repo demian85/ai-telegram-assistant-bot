@@ -122,12 +122,14 @@ test('preserves every character of a single oversized block through literal rich
   expect(parts.join('')).toBe(markdown)
 })
 
-test.each(['', '  \n\n'])(
-  'does not send empty rich content %j',
+test.each(['', '  \n\n', '\t\r\n'])(
+  'rejects blank rich content %j',
   async (markdown) => {
     const send = vi.fn(async (_content: RichMessageContent) => undefined)
 
-    await sendRichMarkdown(send, markdown)
+    await expect(sendRichMarkdown(send, markdown)).rejects.toThrow(
+      'Cannot send a blank rich message'
+    )
 
     expect(send).not.toHaveBeenCalled()
   }
