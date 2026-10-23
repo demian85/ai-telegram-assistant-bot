@@ -1,4 +1,5 @@
 import { Telegraf } from 'telegraf'
+import { sendTelegramMessage } from './send-message.js'
 import { message } from 'telegraf/filters'
 import type { ChatOpenAI } from '@langchain/openai'
 import type { Redis } from 'ioredis'
@@ -191,6 +192,11 @@ export class Bot {
     )
 
     this.bot.use(async (ctx, next) => {
+      const reply = ctx.reply.bind(ctx)
+      ctx.reply = (text, extra) =>
+        typeof text === 'string'
+          ? sendTelegramMessage(reply, text, extra)
+          : reply(text, extra)
       const scope = getContextChatScope(ctx)
 
       if (!scope) {
@@ -359,12 +365,16 @@ export class Bot {
     logger.debug(logContext, 'Starting Telegram news delivery')
 
     try {
-      await this.bot.telegram.sendMessage(chatId, lines.join('\n'), {
-        parse_mode: 'HTML',
-        link_preview_options: {
-          is_disabled: false,
-        },
-      })
+      await sendTelegramMessage(
+        (text, extra) => this.bot.telegram.sendMessage(chatId, text, extra),
+        lines.join('\n'),
+        {
+          parse_mode: 'HTML',
+          link_preview_options: {
+            is_disabled: false,
+          },
+        }
+      )
 
       logger.debug(
         {

@@ -40,6 +40,7 @@ Telegraf middleware routes authorized commands and ordinary text/photos into sco
 - Unmentioned photos in allowed groups persist without a reply unless they directly reply to this bot's message. For an invoked photo with unsupported vision, persist its shadow and send the limitation message.
 - `Bot.sendNewsArticle` throws for negative chat IDs absent from `telegram.allowedGroupIds`, before sending to Telegram. Positive private-chat IDs are unaffected by this group guard.
 - Use `formatTelegramMarkdownReply` with Telegram `parse_mode: 'Markdown'` for model responses.
+- `send-message.ts` wraps string replies in middleware and scheduled news sends: split long rendered text at paragraph, sentence, word, or Unicode boundaries, preserve formatting with entities, await chunks in order, and honor Telegram's `retry_after`. Use this shared sender for standalone command handlers too. Unparseable long formatting falls back to literal plain text.
 - Treat RSS titles, descriptions, sources, and URLs as literal data; scheduled articles, `/news`, and `/debugnews` use HTML formatting with escaped fields.
 - Reuse `formatNewsArticle` / `formatNewsArticles` for news formatting and their plain-text mode for summary input.
 

@@ -87,6 +87,7 @@ class StubAgentService {
 function createBotHarness(
   options: {
     imageSupport?: boolean
+    response?: string
     generator?: Pick<NewsPreferenceGenerator, 'generate'>
     allowedGroupIds?: string[]
     whitelistedUsers?: string[]
@@ -99,7 +100,10 @@ function createBotHarness(
     redis.asRedis(),
     'AI and technology'
   )
-  const agentService = new StubAgentService(options.imageSupport ?? true)
+  const agentService = new StubAgentService(
+    options.imageSupport ?? true,
+    options.response
+  )
   const allowedGroupIds =
     'allowedGroupIds' in options ? options.allowedGroupIds : ['-100']
   const config: Config = {
@@ -840,4 +844,57 @@ test('scheduled news with Markdown-looking RSS fields sends parseable literal te
       },
     },
   ])
+})
+
+test('delivers an oversized agent reply as consecutive formatted messages', async () => {
+  const visible = 'A useful explanation. '.repeat(700)
+  const { telegraf } = createBotHarness({ response: `**${visible}**` })
+
+  const ctx = await telegraf.dispatch(
+    createTextUpdate({
+      chatId: 100,
+      chatType: 'private',
+      username: 'alice',
+      text: 'Explain this in detail',
+    })
+  )
+
+  expect(ctx.replyLog.length).toBeGreaterThan(1)
+  expect(ctx.replyLog.map(({ text }) => text).join('')).toBe(visible)
+  for (const { text, extra } of ctx.replyLog) {
+    expect(text.length).toBeLessThanOrEqual(4096)
+    expect(extra?.entities).toEqual([
+      expect.objectContaining({ type: 'bold', offset: 0, length: text.length }),
+    ])
+  }
+})
+
+test('splits scheduled news while preserving literal RSS content and links', async () => {
+  const { bot, telegraf } = createBotHarness()
+  const description = 'A & <B> **C** '.repeat(800)
+
+  await bot.sendNewsArticle('100', {
+    articleId: 'large',
+    title: 'Large article',
+    description,
+    url: 'https://example.com/?a=1&b=2',
+    relevanceScore: 90,
+  })
+
+  expect(telegraf.sentMessages.length).toBeGreaterThan(1)
+  expect(telegraf.sentMessages.map(({ text }) => text).join('')).toBe(
+    `Large article\nRead more\n${description}\n\nRelevance score: 90`
+  )
+  expect(telegraf.sentMessages[0]?.extra?.entities).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        type: 'text_link',
+        url: 'https://example.com/?a=1&b=2',
+      }),
+    ])
+  )
+  for (const { text, extra } of telegraf.sentMessages) {
+    expect(text.length).toBeLessThanOrEqual(4096)
+    expect(extra?.link_preview_options).toEqual({ is_disabled: false })
+  }
 })

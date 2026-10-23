@@ -49,8 +49,10 @@
   },
   "dependencies": {
     "@extractus/feed-extractor": "^7.1.7",
+    "@grammyjs/parse-mode": "^2.3.0",
     "@langchain/core": "^1.1.39",
     "@langchain/openai": "^1.4.4",
+    "@telegraf/entity": "^0.7.0",
     "bullmq": "^5.73.4",
     "dotenv": "^16.3.1",
     "ioredis": "^5.10.1",
