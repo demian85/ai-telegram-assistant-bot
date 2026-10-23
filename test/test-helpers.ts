@@ -195,6 +195,7 @@ type TestMessage = {
     username?: string
   }
   text?: string
+  reply_to_message?: TestMessage
   caption?: string
   entities?: Array<{ type: string; offset: number; length: number }>
   caption_entities?: Array<{ type: string; offset: number; length: number }>
@@ -223,6 +224,7 @@ type TestContext = {
   message?: TestMessage
   chat?: TestMessage['chat']
   from?: TestMessage['from']
+  botInfo: FakeTelegraf['botInfo']
   telegram: FakeTelegraf['telegram']
   replyLog: TestReply[]
   chatActions: string[]
@@ -241,6 +243,13 @@ type Middleware = (
 type Handler = (ctx: TestContext) => Promise<unknown> | unknown
 
 export class FakeTelegraf {
+  readonly botInfo = {
+    id: 42,
+    is_bot: true,
+    first_name: 'Bot',
+    username: 'bot',
+  } as const
+
   readonly sentMessages: Array<{
     chatId: string
     text: string
@@ -311,6 +320,7 @@ export class FakeTelegraf {
       message: update.message,
       chat: update.message?.chat,
       from: update.message?.from ?? update.inline_query?.from,
+      botInfo: this.botInfo,
       telegram: this.telegram,
       replyLog: [],
       chatActions: [],
@@ -462,6 +472,7 @@ export function createTextUpdate(input: {
   username?: string
   firstName?: string
   text: string
+  replyToMessage?: TestMessage
   entities?: Array<{ type: string; offset: number; length: number }>
 }): TestUpdate {
   return {
@@ -481,6 +492,7 @@ export function createTextUpdate(input: {
         username: input.username,
       },
       text: input.text,
+      reply_to_message: input.replyToMessage,
       entities:
         input.entities ??
         (input.text.startsWith('/')
@@ -504,6 +516,7 @@ export function createPhotoUpdate(input: {
   username?: string
   firstName?: string
   caption?: string
+  replyToMessage?: TestMessage
   captionEntities?: Array<{ type: string; offset: number; length: number }>
   fileIds: string[]
 }): TestUpdate {
@@ -524,6 +537,7 @@ export function createPhotoUpdate(input: {
         username: input.username,
       },
       caption: input.caption,
+      reply_to_message: input.replyToMessage,
       caption_entities: input.captionEntities,
       photo: input.fileIds.map((fileId, index) => ({
         file_id: fileId,
