@@ -5,11 +5,15 @@ import type {
   newsConfigSchema,
   llmRoleConfigSchema,
   llmConfigSchema,
+  chatRoleConfigSchema,
 } from './schema.js'
 
 export type AppConfig = z.infer<typeof appConfigSchema>
 export type TelegramConfig = z.infer<typeof telegramConfigSchema>
 export type NewsAppConfig = z.infer<typeof newsConfigSchema>
 export type LlmRoleConfig = z.infer<typeof llmRoleConfigSchema>
+export type ChatSystemPrompts = z.infer<
+  typeof chatRoleConfigSchema
+>['systemPrompts']
 export type LlmConfig = z.infer<typeof llmConfigSchema>
 export type LlmRole = keyof LlmConfig['roles']

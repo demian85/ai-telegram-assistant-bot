@@ -18,6 +18,8 @@ test('vision-capable role wiring keeps live image input rich and persists a text
     redis: redis.asRedis(),
     agentModel: createStubModel('gpt-5.4-mini'),
     summarizerModel: createStubModel('gpt-5.4-nano'),
+    systemPrompts: { private: 'private-test', group: 'group-test' },
+    summarizerSystemPrompt: '{{period}}',
     supportsVision: true,
     tools: [],
   })
@@ -37,10 +39,14 @@ test('vision-capable role wiring keeps live image input rich and persists a text
 
   expect(service.supportsImageInput()).toBe(true)
 
-  const reply = await service.invokeLive('private:1', {
-    text: 'Describe this image',
-    imageUrl: 'https://images.test/cat.png',
-  })
+  const reply = await service.invokeLive(
+    'private:1',
+    {
+      text: 'Describe this image',
+      imageUrl: 'https://images.test/cat.png',
+    },
+    'private'
+  )
 
   expect(reply).toBe('vision reply')
 
@@ -106,6 +112,8 @@ test('non-vision role wiring falls back to text-shadow input for live and persis
     redis: redis.asRedis(),
     agentModel: createStubModel('gpt-5.4-nano'),
     summarizerModel: createStubModel('gpt-5.4-nano'),
+    systemPrompts: { private: 'private-test', group: 'group-test' },
+    summarizerSystemPrompt: '{{period}}',
     supportsVision: false,
     tools: [],
   })
@@ -128,10 +136,14 @@ test('non-vision role wiring falls back to text-shadow input for live and persis
     buildPersistedTextShadow({ imageUrl: 'https://images.test/only.png' })
   ).toBe('[image attached]')
 
-  await service.invokeLive('private:2', {
-    text: 'What is in this image?',
-    imageUrl: 'https://images.test/only.png',
-  })
+  await service.invokeLive(
+    'private:2',
+    {
+      text: 'What is in this image?',
+      imageUrl: 'https://images.test/only.png',
+    },
+    'private'
+  )
   await service.persistUserMessage('private:2', {
     imageUrl: 'https://images.test/follow-up.png',
   })
@@ -163,6 +175,8 @@ test('clearHistory deletes summaries and only clears the targeted chat scope', a
     redis: redis.asRedis(),
     agentModel: createStubModel('gpt-5.4-mini'),
     summarizerModel: createStubModel('gpt-5.4-nano'),
+    systemPrompts: { private: 'private-test', group: 'group-test' },
+    summarizerSystemPrompt: '{{period}}',
     supportsVision: true,
     tools: [],
   })

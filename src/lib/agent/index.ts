@@ -7,6 +7,9 @@ import logger from '../logger.js'
 import type { ConversationMessage } from '../redis/conversation-store.js'
 import { MemoryManager } from '../memory/memory-manager.js'
 import type { MemoryConfig } from '../memory/types.js'
+import type { ChatSystemPrompts } from '../config/types.js'
+import { renderPromptTemplate } from '../config/prompt-template.js'
+import type { TelegramChatScopeType } from '../telegram/scope.js'
 import {
   buildLiveUserContent,
   buildPersistedTextShadow,
@@ -21,7 +24,8 @@ export interface AgentServiceConfig {
   supportsVision: boolean
   supportsWebSearch?: boolean
   tools: StructuredTool[]
-  systemPrompt?: string
+  readonly systemPrompts: ChatSystemPrompts
+  readonly summarizerSystemPrompt: string
   memoryConfig?: Partial<MemoryConfig>
 }
 
@@ -30,19 +34,20 @@ export class AgentService {
   private readonly model: ChatOpenAI
   private readonly supportsVision: boolean
   private readonly tools: StructuredTool[]
-  private readonly systemPrompt: string
+  private readonly systemPrompts: ChatSystemPrompts
   private agent: ReactAgent | null = null
 
   constructor(config: AgentServiceConfig) {
     this.memoryManager = new MemoryManager(
       config.redis,
       config.summarizerModel,
+      config.summarizerSystemPrompt,
       config.memoryConfig
     )
     this.model = config.agentModel
     this.supportsVision = config.supportsVision
     this.tools = config.tools
-    this.systemPrompt = config.systemPrompt || this.getDefaultSystemPrompt()
+    this.systemPrompts = config.systemPrompts
   }
 
   async initialize(): Promise<void> {
@@ -57,8 +62,12 @@ export class AgentService {
     })
   }
 
-  async invoke(chatId: string, message: string): Promise<string> {
-    return this.invokeLive(chatId, { text: message })
+  async invoke(
+    chatId: string,
+    message: string,
+    chatType: TelegramChatScopeType
+  ): Promise<string> {
+    return this.invokeLive(chatId, { text: message }, chatType)
   }
 
   async persistUserMessage(
@@ -84,7 +93,8 @@ export class AgentService {
 
   async invokeLive(
     chatId: string,
-    input: AgentLiveInvocationInput
+    input: AgentLiveInvocationInput,
+    chatType: TelegramChatScopeType
   ): Promise<string> {
     if (!this.agent) {
       throw new Error('Agent not initialized. Call initialize() first.')
@@ -96,7 +106,8 @@ export class AgentService {
     const messages = this.buildAgentMessages(
       contextWindow,
       liveUserContent,
-      persistedUserContent
+      persistedUserContent,
+      chatType
     )
 
     await this.memoryManager.addMessage(chatId, {
@@ -171,12 +182,18 @@ export class AgentService {
   private buildAgentMessages(
     contextWindow: Awaited<ReturnType<MemoryManager['getContextWindow']>>,
     liveUserContent: MessageContent,
-    persistedUserContent: string
+    persistedUserContent: string,
+    chatType: TelegramChatScopeType
   ): Array<{ role: 'system' | 'user' | 'assistant'; content: MessageContent }> {
     const summaryContext = this.formatSummaryContext(contextWindow)
 
     return [
-      { role: 'system', content: this.systemPrompt },
+      {
+        role: 'system',
+        content: renderPromptTemplate(this.systemPrompts[chatType], {
+          chatType,
+        }),
+      },
       ...(summaryContext
         ? ([{ role: 'system', content: summaryContext }] as const)
         : []),
@@ -230,16 +247,6 @@ export class AgentService {
     )
 
     return `${label}:\n${items.join('\n')}`
-  }
-
-  private getDefaultSystemPrompt(): string {
-    return `You are a helpful AI assistant. You have access to tools that can help answer questions and perform tasks.
-
-When using tools:
-- Always use the calculator for mathematical calculations
-- Provide clear, concise responses
-- If you're unsure about something, say so
-- Be friendly and helpful in your interactions`
   }
 }
 

@@ -47,7 +47,10 @@ function createDefaultsConfigJson() {
           chat: {
             model: 'chat-default',
             supportsVision: false,
-            systemPrompt: 'chat default prompt',
+            systemPrompts: {
+              private: 'private-default',
+              group: 'group-default',
+            },
           },
           summarizer: {
             model: 'summarizer-default',
@@ -92,7 +95,10 @@ test('loadAppConfig deep-merges objects while replacing arrays and scalars', () 
               chat: {
                 model: 'chat-default',
                 supportsVision: false,
-                systemPrompt: 'chat override prompt',
+                systemPrompts: {
+                  private: 'private-override',
+                  group: 'group-override',
+                },
               },
               summarizer: {
                 model: 'summarizer-default',
@@ -134,7 +140,10 @@ test('loadAppConfig deep-merges objects while replacing arrays and scalars', () 
           chat: {
             model: 'chat-default',
             supportsVision: false,
-            systemPrompt: 'chat override prompt',
+            systemPrompts: {
+              private: 'private-override',
+              group: 'group-override',
+            },
           },
           summarizer: {
             model: 'summarizer-default',
