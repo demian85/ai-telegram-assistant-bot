@@ -23,7 +23,10 @@ Builds live LangChain invocations, durable text history, and tools with trusted 
 ## Tools
 
 - `createAgentTools()` always includes calculator, help, and current time.
-- It adds `get_recent_news` only when a news query service exists and the chat role does not declare web-search support.
+- It adds `get_recent_news` whenever a news query service exists, independently of web search. Saved per-chat preferences still apply to this tool.
+- `search_web` and `read_webpage` use provider-native retrieval through ordinary chat completions, with provider fields isolated in `../llm/provider-options.ts`. The reader disables web/X search and enables only URL scraping. They require trusted invocation scope and share a three-call turn budget.
+- Retrieval results use Redis TTLs of 300 seconds for search and 3600 seconds for URL reading, with chat/model/options/input in the cache identity. Concurrent identical requests share one promise. Unsourced results and provider errors are not cached.
+- `invokeLive(..., 'summary')` selects the summarizer model and removes all tools before the model request. Normal private/group chat keeps its configured search settings and tools. Never route `/summary` through the normal chat purpose.
 - `invokeLive()` strips the private/group prefix for `configurable.newsChatId`; `get_recent_news` passes that trusted value to `fetchAndGetRecentNewsForChat()`. Its model-supplied schema contains only `count` (1-10, default 5); missing context fails closed.
 - Tool definitions live in `tools.ts`; adding a tool requires wiring it into the factory used by `src/index.ts`.
 

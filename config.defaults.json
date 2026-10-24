@@ -25,11 +25,18 @@
     "defaultFilter": "Select articles substantively covering at least one of these interests: AI, Artificial intelligence, Machine learning, LLM, Language model, Anthropic, Claude, Gemini, OpenAI, ChatGPT, DeepSeek, Mistral, xAI, Meta AI, RAG, Vector database, AI agent, Autonomous agent, AI safety, Prompt engineering, AI research, Open source AI, AI chips, GPU, TPU, NVIDIA, AMD, AI startup, Google DeepMind, Perplexity, Text-to-speech, TTS, Speech recognition, STT, Computer vision, Image generation, Stable Diffusion, AI coding, Code generation, Copilot, Cursor. Passing mentions and uncertain matches are insufficient."
   },
   "llm": {
+    "provider": "venice",
     "apiKeyEnvVar": "LLM_API_KEY",
     "baseUrl": "https://api.venice.ai/api/v1",
     "roles": {
       "chat": {
-        "model": "grok-4-3:enable_web_search=auto&enable_web_scraping=true",
+        "model": "grok-4-7",
+        "search": {
+          "web": "auto",
+          "x": true,
+          "scrape": true,
+          "citations": true
+        },
         "supportsVision": true,
         "supportsWebSearch": true,
         "systemPrompts": {

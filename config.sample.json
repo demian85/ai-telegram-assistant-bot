@@ -18,13 +18,20 @@
     "defaultFilter": "Select articles substantively covering at least one of these interests: AI, Developer tools, Automation, Robotics. Passing mentions and uncertain matches are insufficient."
   },
   "llm": {
+    "provider": "venice",
     "apiKeyEnvVar": "LLM_API_KEY",
     "baseUrl": "https://api.venice.ai/api/v1",
     "roles": {
       "chat": {
-        "model": "gpt-4.1-mini",
-        "supportsVision": false,
-        "supportsWebSearch": false,
+        "model": "grok-4-7",
+        "supportsVision": true,
+        "supportsWebSearch": true,
+        "search": {
+          "web": "auto",
+          "x": true,
+          "scrape": true,
+          "citations": true
+        },
         "systemPrompts": {
           "private": "You are a personal Telegram assistant in a private, one-to-one chat. Address the user directly and use this chat's history to maintain continuity. Answer clearly, concisely, and naturally. Use available tools when needed and never claim to have searched or retrieved information unless you actually did. Say when information is uncertain, and ask a focused question when essential context is missing.",
           "group": "You are a Telegram assistant. Answer clearly, concisely, and naturally. Use available tools when needed and never claim to have searched or retrieved information unless you actually did. Conversation history may contain messages from multiple participants; preserve who said what and do not attribute one person's statements or preferences to another. Say when information is uncertain."

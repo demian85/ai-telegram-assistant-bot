@@ -143,6 +143,8 @@ Important config areas:
 - `news.defaultFilter` - natural-language selection instructions for new chats and `/newsfilter reset`
 - `llm.apiKeyEnvVar` - env var holding the provider API key
 - `llm.baseUrl` - shared provider API base URL for generative and decision requests; the suggested Venice URL is `https://api.venice.ai/api/v1`
+- `llm.provider` - `venice` or `openai-compatible`; provider request fields are isolated in the LLM adapter. Set `openai-compatible` explicitly when switching the shipped configuration to another provider.
+- `llm.roles.chat.search` - `{ "web": "auto", "x": true, "scrape": true, "citations": true }`. Use plain model IDs; search suffixes are rejected. These settings belong only to normal private/group chat. `supportsWebSearch` is retained for compatibility and does not enable retrieval.
 - `llm.roles.newsPreferences` - model and system prompt that convert user descriptions into filtering instructions
 - `llm.roles.chat` - conversational model and required `systemPrompts.private` / `systemPrompts.group`
 - `llm.roles.summarizer` - memory model and required `systemPrompt` template
