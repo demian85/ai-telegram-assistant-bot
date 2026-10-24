@@ -284,6 +284,10 @@ export class FakeTelegraf {
   }
 
   private readonly middlewares: Middleware[] = []
+  private errorHandler?: (
+    error: unknown,
+    ctx: TestContext
+  ) => Promise<unknown> | unknown
   private startHandler: Handler | null = null
   private readonly commandHandlers = new Map<string, Handler>()
   private textHandler: Handler | null = null
@@ -292,6 +296,12 @@ export class FakeTelegraf {
 
   use(middleware: Middleware): void {
     this.middlewares.push(middleware)
+  }
+
+  catch(
+    handler: (error: unknown, ctx: TestContext) => Promise<unknown> | unknown
+  ): void {
+    this.errorHandler = handler
   }
 
   on(_filter: unknown, handler: Handler): void {
@@ -351,7 +361,12 @@ export class FakeTelegraf {
       },
     }
 
-    await this.runMiddlewares(ctx, 0)
+    try {
+      await this.runMiddlewares(ctx, 0)
+    } catch (error) {
+      if (!this.errorHandler) throw error
+      await this.errorHandler(error, ctx)
+    }
 
     return ctx
   }

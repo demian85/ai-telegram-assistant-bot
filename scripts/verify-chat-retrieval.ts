@@ -5,18 +5,12 @@ import path from 'node:path'
 import OpenAI from 'openai'
 import { ChatOpenAI } from '@langchain/openai'
 import { loadAppConfig } from '../src/lib/config/load-config.js'
-import { createLlmRoleModels } from '../src/lib/llm/model.js'
 import {
   providerOptions,
   noSearch,
   assertChatCapabilities,
 } from '../src/lib/llm/provider-options.js'
 import { citedResponse } from '../src/lib/llm/response.js'
-import {
-  ChatRetrieval,
-  createRetrievalTools,
-} from '../src/lib/agent/retrieval.js'
-import { InMemoryRedis } from '../test/test-helpers.js'
 
 const config = loadAppConfig()
 const apiKey = process.env[config.llm.apiKeyEnvVar]
@@ -34,7 +28,7 @@ const entry = catalog.data.find(
 )
 if (!entry)
   throw new Error('Configured chat model is absent from the live catalog')
-const toolsOnly = process.argv.includes('--tools-only')
+const chatOnly = process.argv.includes('--chat-only')
 const outputPath = path.join(
   mkdtempSync(path.join(tmpdir(), 'chat-retrieval-')),
   'results.json'
@@ -70,7 +64,10 @@ async function probe(
       },
       { role: 'user', content: prompt },
     ],
-    { promptCacheKey: 'chat-retrieval-live-verification-v1' }
+    {
+      promptCacheKey: 'chat-retrieval-live-verification-v1',
+      signal: AbortSignal.timeout(75_000),
+    }
   )
   const raw = response.additional_kwargs.__raw_response
   records.push({
@@ -90,7 +87,13 @@ async function probe(
     })
   )
 }
-if (!toolsOnly) {
+if (chatOnly) {
+  await probe(
+    'configured-chat',
+    probeModel(config.llm.roles.chat.search ?? noSearch),
+    'show me top trending news from x'
+  )
+} else {
   await probe(
     'x-only',
     probeModel({ ...noSearch, x: true, citations: true }),
@@ -121,32 +124,3 @@ if (!toolsOnly) {
     reference
   )
 }
-const models = createLlmRoleModels(config)
-const retrieval = new ChatRetrieval(
-  models.retrieval,
-  new InMemoryRedis().asRedis(),
-  models.reader
-)
-const reader = createRetrievalTools(retrieval, { search: false, read: true })[0]
-if (!reader) throw new Error('Read tool missing')
-const invocation = {
-  configurable: {
-    purpose: 'chat',
-    chatScope: 'private:1',
-    retrievalBudget: { remaining: 3 },
-  },
-}
-const first = await reader.invoke(
-  { url: 'https://docs.venice.ai/guides/features/prompt-caching' },
-  invocation
-)
-const second = await reader.invoke(
-  { url: 'https://docs.venice.ai/guides/features/prompt-caching' },
-  invocation
-)
-records.push({
-  kind: 'retrieval-tool-cache',
-  identical: first === second,
-  answer: second,
-})
-writeFileSync(outputPath, JSON.stringify(records, null, 2) + '\n')

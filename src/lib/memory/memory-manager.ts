@@ -33,10 +33,12 @@ export class MemoryManager {
 
   async addMessage(
     chatId: string,
-    message: ConversationMessage
+    message: ConversationMessage,
+    signal?: AbortSignal
   ): Promise<void> {
+    signal?.throwIfAborted()
     await this.conversationStore.addMessage(chatId, message)
-    await this.checkAndGenerateSummaries(chatId)
+    await this.checkAndGenerateSummaries(chatId, signal)
   }
 
   async getConversationHistory(
@@ -67,17 +69,24 @@ export class MemoryManager {
     }
   }
 
-  async checkAndGenerateSummaries(chatId: string): Promise<void> {
+  async checkAndGenerateSummaries(
+    chatId: string,
+    signal?: AbortSignal
+  ): Promise<void> {
     const now = Date.now()
 
-    await this.checkAndGenerateDaily(chatId, now)
+    signal?.throwIfAborted()
+    await this.checkAndGenerateDaily(chatId, now, signal)
+    signal?.throwIfAborted()
     await this.checkAndGenerateWeekly(chatId, now)
+    signal?.throwIfAborted()
     await this.checkAndGenerateMonthly(chatId, now)
   }
 
   private async checkAndGenerateDaily(
     chatId: string,
-    now: number
+    now: number,
+    signal?: AbortSignal
   ): Promise<void> {
     const shouldGenerate = await this.summaryStore.shouldGenerateSummary(
       chatId,
@@ -99,7 +108,8 @@ export class MemoryManager {
       messages,
       'daily',
       startTime,
-      now
+      now,
+      signal
     )
 
     await this.summaryStore.saveSummary(summary)

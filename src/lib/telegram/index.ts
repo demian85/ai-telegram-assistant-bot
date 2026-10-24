@@ -91,6 +91,9 @@ interface BotRuntime {
   start(handler: BotCommandHandler): void
   command(command: string, handler: BotCommandHandler): void
   launch(callback?: () => void): Promise<unknown>
+  catch(
+    handler: (error: unknown, ctx: TelegramContext) => Promise<void>
+  ): unknown
   stop(reason?: string): void
 }
 
@@ -172,6 +175,29 @@ export class Bot {
     this.bot =
       dependencies.telegraf ??
       new Telegraf<TelegramContext>(process.env.TELEGRAM_BOT_TOKEN!)
+    this.bot.catch(async (error, ctx) => {
+      if (!(error instanceof Error) || error.name !== 'TimeoutError') {
+        throw error
+      }
+      logger.error(
+        { err: error, updateId: ctx.update.update_id },
+        'Telegram update timed out'
+      )
+      if (
+        !this.shouldInvokeAgent(ctx) &&
+        !this.getMessageEntities(ctx).some(
+          (entity) => entity.type === 'bot_command' && entity.offset === 0
+        )
+      )
+        return
+      try {
+        await ctx.reply(
+          'Sorry, that request took too long. Please try a narrower request.'
+        )
+      } catch (err) {
+        logger.error({ err }, 'Failed to send timeout reply')
+      }
+    })
     this.richMessageApi =
       dependencies.richMessageApi ??
       new Api(process.env.TELEGRAM_BOT_TOKEN ?? '')
@@ -761,10 +787,14 @@ export class Bot {
       await this.replyWithAgentMarkdown(ctx, response)
     } catch (error) {
       logger.error(
-        { error, chatScope: ctx.chatScope },
+        { err: error, chatScope: ctx.chatScope },
         'Agent completion error'
       )
-      await ctx.reply('Sorry, I encountered an error. Please try again.')
+      await ctx.reply(
+        error instanceof Error && error.name === 'TimeoutError'
+          ? 'Sorry, that request took too long. Please try a narrower request.'
+          : 'Sorry, I encountered an error. Please try again.'
+      )
     }
   }
 
@@ -909,6 +939,14 @@ export class Bot {
       .trim()
   }
 
+  private shouldInvokeAgent(ctx: TelegramContext): boolean {
+    const isReplyToBot =
+      ctx.message !== undefined &&
+      'reply_to_message' in ctx.message &&
+      ctx.message.reply_to_message?.from?.id === ctx.botInfo.id
+    return ctx.chatType === 'private' || ctx.isMention || isReplyToBot
+  }
+
   private async normalizeIncomingMessage(
     ctx: TelegramContext
   ): Promise<NormalizedTelegramIngress | null> {
@@ -917,11 +955,7 @@ export class Bot {
     }
 
     const text = ctx.parsedMessageText?.trim() ?? ''
-    const isReplyToBot =
-      'reply_to_message' in ctx.message &&
-      ctx.message.reply_to_message?.from?.id === ctx.botInfo.id
-    const shouldInvoke =
-      ctx.chatType === 'private' || ctx.isMention || isReplyToBot
+    const shouldInvoke = this.shouldInvokeAgent(ctx)
 
     if ('photo' in ctx.message && Array.isArray(ctx.message.photo)) {
       const largestPhoto = ctx.message.photo[ctx.message.photo.length - 1]

@@ -29,6 +29,8 @@ Offline Vitest behavior coverage with injected service doubles and a real agent/
 | Independent decision and generative models                               | `news-decision-config.test.ts`                          |
 | Modern config, retired-field rejection and required preference role      | `config-modern.test.ts`                                 |
 
+Native search parameters and timeout recovery are covered in `chat-retrieval.test.ts`, `agent-timeout.test.ts`, and `telegram-timeout.test.ts`. The latter uses real Telegraf update handling with a short deadline and injected transports, without starting polling.
+
 ## Harness conventions
 
 - Vitest discovers `test/**/*.test.ts` and `test/**/*.test.mjs` in the Node environment.

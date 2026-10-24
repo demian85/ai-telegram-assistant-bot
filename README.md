@@ -152,6 +152,12 @@ Important config areas:
 
 Existing nonempty overrides that omit `llm.roles.chat.search` keep native retrieval disabled. Add explicit search settings to opt in. With no override or an empty override, the defaults apply.
 
+Web search, X search, and URL reading are provider capabilities, not application tools. The Venice adapter sends `enable_web_search`, `enable_x_search`, `enable_web_scraping`, and `enable_web_citations` inside `venice_parameters` on the normal chat request. Venice performs retrieval when supported by the selected model; the bot does not make a second model call through a search tool. X search supplies current X evidence, not a guaranteed ranking of platform-wide trending topics. Summaries and preference generation disable these capabilities.
+
+The `openai-compatible` adapter currently supports ordinary chat only. Set chat search to `{ "web": "off", "x": false, "scrape": false, "citations": false }` when selecting it; enabling native search fails at startup with a configuration error. Switching providers does not preserve Venice's X capability. A ChatGPT subscription is not an API key for this bot: subscription-backed Codex access would require a separate integration, and OpenAI API usage is billed separately. The news pipeline additionally requires the configured provider's `/decisions` contract.
+
+Agent model/tool execution has a 75-second cancellation deadline, below Telegraf's 90-second update timeout. A timeout produces a retry message; the update error handler keeps polling available if the outer deadline is reached.
+
 Preference generation and news decisions share `llm.baseUrl` and the API key. Set `llm.roles.newsPreferences.model` to a generative model that supports structured JSON output, and select the article evaluator with `news.decisionModel`. Eligibility instructions and coverage criteria are defined in application code and contribute to the decision cache fingerprint. The decision model receives your original preferences once, alongside the article title and description; compiled criteria remain available for inspection.
 
 All three generative roles must be explicitly configured in defaults and in any nonempty override. The loader validates a nonempty override as a full config before merging: a file containing only one role is not sufficient. The removed `llm.roles.newsRelevance` entry, `llm.defaultModel`, and `news.topics` are rejected. Configure default preferences with `news.defaultFilter`.

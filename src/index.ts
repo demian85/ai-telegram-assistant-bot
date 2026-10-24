@@ -13,7 +13,6 @@ import {
 } from '@lib/news/index.js'
 import { createAgentTools } from '@lib/agent/tools.js'
 import { ChatNewsFilter } from '@lib/news/chat-news-filter.js'
-import { ChatRetrieval } from '@lib/agent/retrieval.js'
 import { validateChatCapabilities } from '@lib/llm/provider-options.js'
 import {
   NewsPreferenceStore,
@@ -53,14 +52,9 @@ async function main() {
   })
 
   const supportsWebSearch = llmSupportsWebSearch('chat', config)
-  const search = config.llm.roles.chat.search
   const tools = createAgentTools({
     newsQueryService,
     supportsWebSearch,
-    retrieval: new ChatRetrieval(models.retrieval, redis, models.reader),
-    retrievalSearch:
-      (search?.web !== undefined && search.web !== 'off') || search?.x === true,
-    retrievalRead: search?.scrape,
   })
 
   const bot = new Bot(

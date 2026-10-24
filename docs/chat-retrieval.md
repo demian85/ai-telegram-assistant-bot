@@ -24,28 +24,32 @@ remain authoritative. Empty or absent overrides continue using the defaults.
 For Venice, startup checks the standard `/models` catalog for required
 function-calling, web-search, and X-search capabilities.
 
-## Tools and limits
+## Native retrieval and limits
 
-- `search_web`: retrieves current cited evidence through chat completions.
-- `read_webpage`: reads a public HTTP(S) URL through chat completions with
-  scraping enabled and web/X search disabled. Returns model-generated page
-  evidence, not raw HTML or a guaranteed verbatim Markdown extraction.
-- Tools accept no model-supplied chat identity; trusted invocation scope and
-  a three-call shared budget are required. The agent graph has a recursion
-  limit of 12. Requests have a 60-second timeout and one SDK retry; native
-  upstream search work can consume substantial tokens within one request.
-- Retrieval responses above 24,000 characters are rejected. Retrieval models
-  request at most 2,000 output tokens; provider-native internal search and
-  reasoning usage is not a hard spend cap.
-- Search cache TTL is five minutes; URL-reading cache TTL is one hour. Cache
-  identity includes chat scope, model, provider options, operation, and input.
-  Cache writes require a validated source URL and nonempty evidence content in
-  structured provider metadata. Echoed URLs and source links without evidence
-  are not sufficient. Responses without that metadata remain usable but are
-  not cached, even if their native text appears successful. Provider errors
-  are not cached. The cache version bypasses entries created by the older
-  URL-only check.
-  Concurrent identical retrieval requests share one inference.
+The normal chat request carries Venice's `venice_parameters`:
+`enable_web_search`, `enable_x_search`, `enable_web_scraping`, and
+`enable_web_citations`. The provider handles retrieval within that request.
+There are no application search or URL-reading tools, extra retrieval models,
+or application retrieval caches. The RSS tool remains separate and uses the
+chat's saved news preferences.
+
+X search can supply recent posts and sources; it does not guarantee access to
+X's official platform-wide trend ranking. URL reading returns model-generated
+evidence, not raw HTML or guaranteed verbatim extraction.
+
+Requests retain a 60-second per-attempt timeout and one SDK retry. A shared
+75-second cancellation deadline covers the agent graph and any synchronous
+memory-model call during message persistence. It cancels work before Telegraf's
+90-second update deadline. A timeout produces a retry message and does not stop
+polling. Passive group messages retain their silent behavior on timeout.
+The agent graph has a recursion limit of 12. Provider-native internal search
+and reasoning can consume substantial tokens within a single request.
+
+For another provider, disable web, X, and scraping in the current compatible
+adapter. A ChatGPT subscription is not an API credential for this bot; using
+subscription-backed Codex would require a separate integration with its own
+capabilities. OpenAI API billing is separate from ChatGPT subscription billing.
+Changing providers also requires support for the news `/decisions` contract.
 
 ## Prompt caching and sources
 
@@ -54,32 +58,27 @@ System instructions and tools remain stable; rolling history and updated
 summaries can reduce reusable prefixes. Prompt caching remains provider-managed;
 there is no padding or artificial warming in normal bot operation.
 `llm.usage` logs per-call token/cache metadata, including agent tool-loop calls.
-`retrieval.cache_hit` identifies application cache hits separately.
 
 Native model text, citation markers, links, and any model-written source list
 are preserved unchanged. Private replies may append a Sources list from provider
-metadata; group replies skip that addition. Retrieval tool results retain the
-metadata source list internally so the model can use it when composing an answer.
+metadata; group replies skip that addition.
 
 ## Verification
 
 Run offline checks with `npm test`, `npm run tscheck`, `npm run lint`,
 `npm run format:check`, and `npm run build`.
 
-`node --import tsx scripts/verify-chat-retrieval.ts` makes up to seven paid inference
+`node --import tsx scripts/verify-chat-retrieval.ts` makes up to five paid inference
 calls plus one catalog request. It loads the configured API key without
-printing it, sends no Telegram messages, and uses an in-memory Redis double.
+printing it, sends no Telegram messages, and does not connect to Redis.
 It records responses and cache usage in a fresh temporary directory and prints
 the output path. Generated captures are not stored in the repository.
 The cache probe repeats the repository README as a controlled reference.
-Use `--tools-only` for a live URL-tool/cache verification (up to two paid calls) without running
-the other probes. It requires no previous capture. The Redis double proves
-result reuse but not real Redis expiry.
+Use `--chat-only` for one paid native-search call with the reported prompt,
+`show me top trending news from x`, plus the catalog request.
 
-The October 23, 2026 live check confirmed web-search source metadata,
-page-specific reading, X-enabled responses with post URLs, and a repeated
-prompt cache hit of 6,400 out of 6,437 input tokens. X post contents were not
-independently verified. The offline suite passed 445 tests, plus typecheck,
-lint, formatting, and build. No live Telegram exchange or real Redis expiry
-test was performed. Disposable raw captures and the separate run report were
-removed after verification.
+The October 24, 2026 native-search check returned an answer with source links
+for that exact prompt in 37.2 seconds. The contents and trend rankings were
+not independently verified. Offline regressions exercise cancellation during
+chat and memory calls and use real Telegraf update handling to verify timeout
+recovery and subsequent messages. No live Telegram exchange was performed.

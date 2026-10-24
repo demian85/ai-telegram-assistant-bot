@@ -5,11 +5,6 @@ import { z } from 'zod'
 import { loadAppConfig } from '../src/lib/config/load-config.js'
 import { createLlmRoleModels } from '../src/lib/llm/model.js'
 import { AgentService } from '../src/lib/agent/index.js'
-import {
-  ChatRetrieval,
-  createRetrievalTools,
-  publicUrlSchema,
-} from '../src/lib/agent/retrieval.js'
 import { citedResponse } from '../src/lib/llm/response.js'
 import { createAgentTools } from '../src/lib/agent/tools.js'
 import { InMemoryRedis } from './test-helpers.js'
@@ -18,6 +13,7 @@ import { filterHarness } from './news-filter-helpers.js'
 import {
   assertChatCapabilities,
   providerOptions,
+  noSearch,
 } from '../src/lib/llm/provider-options.js'
 
 afterEach(() => vi.unstubAllEnvs())
@@ -31,21 +27,23 @@ const requestSchema = z.object({
 })
 function recordingModel(
   model: string,
-  requests: z.infer<typeof requestSchema>[],
-  replies?: readonly {
-    readonly content: string
-    readonly citations?: readonly unknown[]
-  }[]
+  requests: z.infer<typeof requestSchema>[]
 ) {
+  const config = loadAppConfig()
   return new ChatOpenAI({
     model,
+    modelKwargs: providerOptions(
+      config,
+      model === 'summary'
+        ? noSearch
+        : (config.llm.roles.chat.search ?? noSearch)
+    ),
     apiKey: 'offline',
     maxRetries: 0,
     __includeRawResponse: true,
     configuration: {
       fetch: async (_url, init) => {
         requests.push(requestSchema.parse(JSON.parse(String(init?.body))))
-        const reply = replies?.[requests.length - 1]
         return Response.json({
           id: 'test',
           object: 'chat.completion',
@@ -57,20 +55,18 @@ function recordingModel(
               finish_reason: 'stop',
               message: {
                 role: 'assistant',
-                content: reply?.content ?? 'evidence [1]',
+                content: 'evidence [1]',
               },
             },
           ],
           venice_parameters: {
-            web_search_citations: reply
-              ? (reply.citations ?? [])
-              : [
-                  {
-                    url: 'https://example.com/article',
-                    title: 'Article',
-                    content: 'Retrieved article evidence.',
-                  },
-                ],
+            web_search_citations: [
+              {
+                url: 'https://example.com/article',
+                title: 'Article',
+                content: 'Retrieved article evidence.',
+              },
+            ],
           },
           usage: {
             prompt_tokens: 2000,
@@ -85,16 +81,13 @@ function recordingModel(
 }
 
 test.each(['private', 'group'] as const)(
-  'isolates summary tools and cache scope from normal %s chat',
+  'uses native search without retrieval tools and isolates summary calls in %s chat',
   async (chatType) => {
     const requests: z.infer<typeof requestSchema>[] = []
     const chat = recordingModel('chat', requests)
     const summary = recordingModel('summary', requests)
     const redis = new InMemoryRedis().asRedis<Redis>()
-    const tools = createRetrievalTools(new ChatRetrieval(chat, redis), {
-      search: true,
-      read: true,
-    })
+    const tools = createAgentTools()
     const agent = new AgentService({
       redis,
       agentModel: chat,
@@ -107,7 +100,7 @@ test.each(['private', 'group'] as const)(
     await agent.initialize()
     const answer = await agent.invokeLive(
       `${chatType}:1`,
-      { text: 'hello' },
+      { text: 'show me top trending news from x' },
       chatType
     )
     await agent.invokeLive(`${chatType}:1`, { text: 'again' }, chatType)
@@ -118,25 +111,36 @@ test.each(['private', 'group'] as const)(
       chatType,
       'summary'
     )
+    const turns = requests.filter((request) => request.prompt_cache_key)
     expect(
-      requests
+      turns
         .slice(0, 3)
         .map((request) => request.tools?.map((entry) => entry.function.name))
-    ).toEqual(Array.from({ length: 3 }, () => ['search_web', 'read_webpage']))
-    expect(requests[3]?.model).toBe('summary')
-    expect(requests[3]?.tools ?? []).toEqual([])
-    expect(requests[0]?.prompt_cache_key).toBeTruthy()
-    expect(requests[0]?.prompt_cache_key).toBe(requests[1]?.prompt_cache_key)
-    expect(requests[0]?.prompt_cache_key).not.toBe(
-      requests[2]?.prompt_cache_key
+    ).toEqual(
+      Array.from({ length: 3 }, () => ['calculator', 'help', 'current_time'])
     )
+    expect(turns).toHaveLength(4)
+    expect(turns[0]?.venice_parameters).toMatchObject({
+      enable_web_search: 'auto',
+      enable_x_search: true,
+    })
+    expect(turns[3]?.venice_parameters).toMatchObject({
+      enable_web_search: 'off',
+      enable_x_search: false,
+      enable_web_scraping: false,
+    })
+    expect(turns[3]?.model).toBe('summary')
+    expect(turns[3]?.tools ?? []).toEqual([])
+    expect(turns[0]?.prompt_cache_key).toBeTruthy()
+    expect(turns[0]?.prompt_cache_key).toBe(turns[1]?.prompt_cache_key)
+    expect(turns[0]?.prompt_cache_key).not.toBe(turns[2]?.prompt_cache_key)
     expect(answer.includes('Sources:')).toBe(chatType === 'private')
     if (chatType === 'group') expect(answer).toBe('evidence [1]')
     else expect(answer).toContain('https://example.com/article')
   }
 )
 
-test('confines provider-native retrieval options to chat and retrieval roles', () => {
+test('confines provider-native search options to the chat role', () => {
   const config = loadAppConfig()
   vi.stubEnv(config.llm.apiKeyEnvVar, 'offline')
   const models = createLlmRoleModels(config)
@@ -157,56 +161,6 @@ test('confines provider-native retrieval options to chat and retrieval roles', (
         enable_web_citations: false,
       },
     })
-})
-
-test('reuses cached evidence in one chat but separates chats and bounds tool calls', async () => {
-  const requests: z.infer<typeof requestSchema>[] = []
-  const redis = new InMemoryRedis()
-  const retrieval = new ChatRetrieval(
-    recordingModel('retrieval', requests),
-    redis.asRedis()
-  )
-  const tools = createRetrievalTools(retrieval, { search: true, read: false })
-  const search = tools[0]
-  if (!search) throw new Error('Search tool missing')
-  const config = {
-    configurable: {
-      purpose: 'chat',
-      chatScope: 'private:1',
-      retrievalBudget: { remaining: 3 },
-    },
-  }
-  const [first, second] = await Promise.all([
-    search.invoke({ query: 'topic' }, config),
-    search.invoke({ query: 'topic' }, config),
-  ])
-  await search.invoke({ query: 'topic' }, config)
-  await expect(search.invoke({ query: 'topic' }, config)).rejects.toThrow(
-    'Retrieval limit'
-  )
-  expect(first).toBe(second)
-  expect(requests).toHaveLength(1)
-  await retrieval.retrieve('search', 'topic', 'group:-1')
-  expect(requests).toHaveLength(2)
-  const otherProvider = recordingModel('retrieval', requests)
-  otherProvider.clientConfig.baseURL = 'https://other-provider.example/v1'
-  await new ChatRetrieval(otherProvider, redis.asRedis()).retrieve(
-    'search',
-    'topic',
-    'private:1'
-  )
-  expect(requests).toHaveLength(3)
-})
-
-test.each([
-  'http://localhost/a',
-  'http://127.0.0.1/a',
-  'http://[::1]/',
-  'http://user:password@example.com/',
-  'file:///tmp/a',
-  'http://example.com:8080',
-])('rejects nonpublic scraping input %s', (url) => {
-  expect(publicUrlSchema.safeParse(url).success).toBe(false)
 })
 
 test('normalizes standard citations and rejects unsafe citation schemes', () => {
@@ -352,109 +306,3 @@ test('preserves source headings inside code and substantive text after a source 
     ).toBe(content)
   }
 })
-
-test('uses bounded cache lifetimes and fails closed without trusted tool context', async () => {
-  const requests: z.infer<typeof requestSchema>[] = []
-  const redis = new InMemoryRedis()
-  const writes = vi.spyOn(redis, 'setex')
-  const retrieval = new ChatRetrieval(
-    recordingModel('retrieval', requests),
-    redis.asRedis()
-  )
-  const tools = createRetrievalTools(retrieval, { search: true, read: true })
-  const search = tools[0]
-  if (!search) throw new Error('Search tool missing')
-  await expect(search.invoke({ query: 'untrusted' })).rejects.toThrow()
-  await expect(
-    search.invoke(
-      { query: 'untrusted' },
-      {
-        configurable: {
-          purpose: 'summary',
-          chatScope: 'private:1',
-          retrievalBudget: { remaining: 3 },
-        },
-      }
-    )
-  ).rejects.toThrow()
-  expect(requests).toHaveLength(0)
-  await retrieval.retrieve('search', 'topic', 'private:1')
-  await retrieval.retrieve('read', 'https://example.com/article', 'private:1')
-  expect(writes.mock.calls.map((call) => call[1])).toEqual([300, 3600])
-})
-
-test('does not cache provider errors and allows a later attempt', async () => {
-  let attempts = 0
-  const model = new ChatOpenAI({
-    model: 'retrieval',
-    apiKey: 'offline',
-    maxRetries: 0,
-    configuration: {
-      fetch: async () => {
-        attempts++
-        return Response.json(
-          { error: { message: 'Unavailable', type: 'invalid_request_error' } },
-          { status: 400 }
-        )
-      },
-    },
-  })
-  const redis = new InMemoryRedis()
-  const writes = vi.spyOn(redis, 'setex')
-  const retrieval = new ChatRetrieval(model, redis.asRedis())
-  await expect(
-    retrieval.retrieve('search', 'topic', 'private:1')
-  ).rejects.toThrow()
-  await expect(
-    retrieval.retrieve('search', 'topic', 'private:1')
-  ).rejects.toThrow()
-  expect(attempts).toBe(2)
-  expect(writes).not.toHaveBeenCalled()
-})
-
-test.each(['search', 'read'] as const)(
-  'does not cache %s failure completions that echo a URL',
-  async (kind) => {
-    const requests: z.infer<typeof requestSchema>[] = []
-    const url = 'https://example.com/article'
-    const failure = `Unable to read ${url}`
-    const model = recordingModel('retrieval', requests, [
-      { content: failure },
-      {
-        content: 'Recovered evidence [1]',
-        citations: [{ url, content: 'The successfully retrieved article.' }],
-      },
-    ])
-    const redis = new InMemoryRedis()
-    const writes = vi.spyOn(redis, 'setex')
-    const retrieval = new ChatRetrieval(model, redis.asRedis())
-    expect(await retrieval.retrieve(kind, url, 'private:1')).toContain(failure)
-    expect(writes).not.toHaveBeenCalled()
-    const recovered = await retrieval.retrieve(kind, url, 'private:1')
-    expect(recovered).toContain('Recovered evidence [1]')
-    expect(await retrieval.retrieve(kind, url, 'private:1')).toBe(recovered)
-    expect(requests).toHaveLength(2)
-    expect(writes).toHaveBeenCalledTimes(1)
-  }
-)
-
-test.each(['', '   '])(
-  'does not treat empty source evidence %j as a cacheable retrieval',
-  async (content) => {
-    const requests: z.infer<typeof requestSchema>[] = []
-    const url = 'https://example.com/article'
-    const failure = `Unable to read ${url}`
-    const reply = {
-      content: failure,
-      citations: [{ url, title: 'Article', content }],
-    }
-    const model = recordingModel('retrieval', requests, [reply, reply])
-    const redis = new InMemoryRedis()
-    const writes = vi.spyOn(redis, 'setex')
-    const retrieval = new ChatRetrieval(model, redis.asRedis())
-    await retrieval.retrieve('read', url, 'private:1')
-    await retrieval.retrieve('read', url, 'private:1')
-    expect(requests).toHaveLength(2)
-    expect(writes).not.toHaveBeenCalled()
-  }
-)
