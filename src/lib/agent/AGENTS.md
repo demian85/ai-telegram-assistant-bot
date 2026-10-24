@@ -24,6 +24,7 @@ Builds live LangChain invocations, durable text history, and tools with trusted 
 
 - `createAgentTools()` always includes calculator, help, and current time.
 - It adds `get_recent_news` whenever a news query service exists, independently of web search. Saved per-chat preferences still apply to this tool.
+- `get_recent_news` forwards its trusted runtime signal through queries, feed fetching, filtering, and decision HTTP requests. Cancellation must propagate instead of becoming an empty result or consuming a retry attempt. Shared decisions continue while another caller still needs them; abort the underlying request only when all consumers leave.
 - Web search, X search, and URL reading use provider-native parameters on the normal chat model, isolated in `../llm/provider-options.ts`. Do not expose application search tools that make additional retrieval model calls. The compatible adapter rejects unsupported native search configuration.
 - Model/tool graph execution receives a shared 75-second abort signal, below Telegraf's 90-second update timeout. Propagate cancellation to downstream calls; never persist an assistant answer after the deadline.
 - `invokeLive(..., 'summary')` selects the summarizer model and removes all tools before the model request. Normal private/group chat keeps its configured search settings and tools. Never route `/summary` through the normal chat purpose.

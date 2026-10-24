@@ -5,6 +5,77 @@ import { InMemoryRedis } from './test-helpers.js'
 
 afterEach(() => vi.restoreAllMocks())
 
+test('returns the persisted answer when it is the fifth history message instead of timing out in a post-write summary', async () => {
+  const controller = new AbortController()
+  vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal)
+  const redis = new InMemoryRedis()
+  for (let i = 0; i < 3; i++)
+    await redis.lpush(
+      'conversation:private:1',
+      JSON.stringify({
+        role: 'user',
+        content: `Earlier message ${i}`,
+        timestamp: Date.now() - 1000 + i,
+      })
+    )
+  const summarizerFetch = vi.fn(async () => {
+    controller.abort(
+      new DOMException('Summary deadline exceeded', 'TimeoutError')
+    )
+    throw controller.signal.reason
+  })
+  const chat = new ChatOpenAI({
+    model: 'offline',
+    apiKey: 'offline',
+    maxRetries: 0,
+    configuration: {
+      fetch: async () =>
+        Response.json({
+          id: 'offline',
+          object: 'chat.completion',
+          created: 0,
+          model: 'offline',
+          choices: [
+            {
+              index: 0,
+              finish_reason: 'stop',
+              message: { role: 'assistant', content: 'Delivered answer' },
+            },
+          ],
+        }),
+    },
+  })
+  const summarizer = new ChatOpenAI({
+    model: 'offline-summary',
+    apiKey: 'offline',
+    maxRetries: 0,
+    configuration: { fetch: summarizerFetch },
+  })
+  const service = new AgentService({
+    redis: redis.asRedis(),
+    agentModel: chat,
+    summarizerModel: summarizer,
+    supportsVision: false,
+    tools: [],
+    systemPrompts: { private: 'private', group: 'group' },
+    summarizerSystemPrompt: '{{period}}',
+  })
+  await service.initialize()
+
+  await expect(
+    service.invokeLive('private:1', { text: 'hello' }, 'private')
+  ).resolves.toBe('Delivered answer')
+
+  expect(summarizerFetch).not.toHaveBeenCalled()
+  const history = await service.getHistory('private:1')
+  expect(history).toHaveLength(5)
+  expect(
+    history
+      .filter((message) => message.role === 'assistant')
+      .map((message) => message.content)
+  ).toEqual(['Delivered answer'])
+})
+
 test.each(['chat', 'memory'] as const)(
   'cancels a slow %s call without persisting late output and accepts the next turn',
   async (phase) => {

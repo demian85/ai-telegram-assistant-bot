@@ -13,7 +13,8 @@ export interface FeedEntry {
 export class FeedReader {
   private readonly seenUrls: Set<string> = new Set()
 
-  async fetchFeed(url: string): Promise<NewsItem[]> {
+  async fetchFeed(url: string, signal?: AbortSignal): Promise<NewsItem[]> {
+    signal?.throwIfAborted()
     logger.trace(
       { event: 'news.feed.fetch.start', feedUrl: url },
       'Starting feed fetch'
@@ -21,7 +22,8 @@ export class FeedReader {
     const startTime = Date.now()
 
     try {
-      const feed = await extract(url)
+      const feed = await extract(url, {}, { signal })
+      signal?.throwIfAborted()
       const items: NewsItem[] = []
       const now = new Date()
       const entries = feed?.entries ?? []
@@ -74,6 +76,7 @@ export class FeedReader {
 
       return items
     } catch (error) {
+      signal?.throwIfAborted()
       logger.error(
         {
           event: 'news.feed.fetch.error',
@@ -89,8 +92,14 @@ export class FeedReader {
     }
   }
 
-  async fetchAllFeeds(urls: string[]): Promise<NewsItem[]> {
-    const results = await Promise.all(urls.map((url) => this.fetchFeed(url)))
+  async fetchAllFeeds(
+    urls: string[],
+    signal?: AbortSignal
+  ): Promise<NewsItem[]> {
+    signal?.throwIfAborted()
+    const results = await Promise.all(
+      urls.map((url) => this.fetchFeed(url, signal))
+    )
     const items = results
       .flat()
       .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())

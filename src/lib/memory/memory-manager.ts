@@ -38,7 +38,8 @@ export class MemoryManager {
   ): Promise<void> {
     signal?.throwIfAborted()
     await this.conversationStore.addMessage(chatId, message)
-    await this.checkAndGenerateSummaries(chatId, signal)
+    if (message.role !== 'assistant')
+      await this.checkAndGenerateSummaries(chatId, signal)
   }
 
   async getConversationHistory(

@@ -76,5 +76,9 @@ test('agent invocation carries trusted chat context through the real tool graph'
 
   await agent.invokeLive('group:-123', { text: 'Get recent news' }, 'group')
 
-  expect(retrieve).toHaveBeenCalledExactlyOnceWith(3, '-123')
+  expect(retrieve).toHaveBeenCalledExactlyOnceWith(
+    3,
+    '-123',
+    expect.any(AbortSignal)
+  )
 })

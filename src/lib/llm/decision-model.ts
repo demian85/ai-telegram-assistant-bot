@@ -72,15 +72,23 @@ export class VeniceDecisionModel {
     this.baseUrl = this.client.baseURL
   }
 
-  async invoke(state: DecisionState, questions: DecisionQuestions) {
+  async invoke(
+    state: DecisionState,
+    questions: DecisionQuestions,
+    signal?: AbortSignal
+  ) {
+    signal?.throwIfAborted()
     const body = { model: this.model, state, questions }
     try {
       const output = await this.client.post<unknown>('/decisions', {
         body,
-        signal: AbortSignal.timeout(60_000),
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(60_000)])
+          : AbortSignal.timeout(60_000),
       })
       return decisionResponseSchema.parse(output)
     } catch (error) {
+      signal?.throwIfAborted()
       if (!(error instanceof APIError) || error.status !== 429) throw error
       const milliseconds = error.headers?.get('retry-after-ms')?.trim()
       const retryAfter = error.headers?.get('retry-after')?.trim()

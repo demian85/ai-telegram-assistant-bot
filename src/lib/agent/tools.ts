@@ -188,7 +188,8 @@ export function createRecentNewsTool(
         const chatId = z.string().min(1).parse(config.configurable?.newsChatId)
         const articles = await newsQueryService.fetchAndGetRecentNewsForChat(
           count,
-          chatId
+          chatId,
+          config.signal
         )
 
         if (articles.length === 0) {
@@ -207,6 +208,7 @@ export function createRecentNewsTool(
 
         return header + formatted
       } catch (error) {
+        config.signal?.throwIfAborted()
         logger.error(
           {
             event: 'news.tool.error',
