@@ -18,6 +18,7 @@ Telegraf middleware routes authorized commands and ordinary text/photos into sco
 ## Routing and identity
 
 - Preserve registration order: context middleware, command handlers, generic text/photo handlers.
+- Update-level `TimeoutError` is logged and answered through `bot.catch` so polling continues. Passive group updates stay silent. Agent execution also has a shorter cancellation deadline; unrelated unexpected update errors retain Telegraf's failure behavior.
 - Middleware resolves chat scope before authorization, mention detection, and parsed text.
 - Groups and supergroups must match `telegram.allowedGroupIds`, an array of negative numeric chat ID strings. Missing or empty means no groups are allowed. Denied group updates return silently before mention detection, parsing, persistence, file lookup, or command dispatch, regardless of sender identity or admin status.
 - Private chats require a Telegram username even when the whitelist is empty; a nonempty whitelist additionally requires a match.

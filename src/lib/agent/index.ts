@@ -122,23 +122,28 @@ export class AgentService {
       throw new Error('Agent not initialized. Call initialize() first.')
     }
 
-    const contextWindow = await this.memoryManager.getContextWindow(chatId)
-    const persistedUserContent = buildPersistedTextShadow(input)
-    const liveUserContent = buildLiveUserContent(input, this.supportsVision)
-    const messages = this.buildAgentMessages(
-      contextWindow,
-      liveUserContent,
-      persistedUserContent,
-      chatType
-    )
-
-    await this.memoryManager.addMessage(chatId, {
-      role: 'user',
-      content: persistedUserContent,
-      timestamp: Date.now(),
-    })
-
+    const signal = AbortSignal.timeout(75_000)
     try {
+      const contextWindow = await this.memoryManager.getContextWindow(chatId)
+      const persistedUserContent = buildPersistedTextShadow(input)
+      const liveUserContent = buildLiveUserContent(input, this.supportsVision)
+      const messages = this.buildAgentMessages(
+        contextWindow,
+        liveUserContent,
+        persistedUserContent,
+        chatType
+      )
+
+      await this.memoryManager.addMessage(
+        chatId,
+        {
+          role: 'user',
+          content: persistedUserContent,
+          timestamp: Date.now(),
+        },
+        signal
+      )
+
       logger.debug(
         {
           messages,
@@ -154,16 +159,17 @@ export class AgentService {
       const result = await this.agent.invoke(
         { messages },
         {
+          signal,
           configurable: {
             newsChatId: chatId.replace(/^(private|group):/, ''),
             chatScope: chatId,
-            retrievalBudget: { remaining: 3 },
             purpose,
             promptCacheKey: cacheKey,
           },
           recursionLimit: 12,
         }
       )
+      signal.throwIfAborted()
 
       const lastMessage = result.messages[result.messages.length - 1]
       const toolCalls = (lastMessage as any).tool_calls
@@ -190,16 +196,21 @@ export class AgentService {
         includeSourceList: chatType !== 'group',
       })
 
-      await this.memoryManager.addMessage(chatId, {
-        role: 'assistant',
-        content: responseText,
-        timestamp: Date.now(),
-      })
+      await this.memoryManager.addMessage(
+        chatId,
+        {
+          role: 'assistant',
+          content: responseText,
+          timestamp: Date.now(),
+        },
+        signal
+      )
 
       return responseText
     } catch (error) {
-      console.error('Agent invoke error:', error)
-      throw error
+      const err = signal.aborted ? signal.reason : error
+      logger.error({ err, chatScope: chatId }, 'Agent invoke failed')
+      throw err
     }
   }
 

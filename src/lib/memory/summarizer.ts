@@ -21,7 +21,8 @@ export class Summarizer {
     messages: ConversationMessage[],
     level: 'daily' | 'weekly' | 'monthly',
     startTime: number,
-    endTime: number
+    endTime: number,
+    signal?: AbortSignal
   ): Promise<MemorySummary> {
     const conversationText = messages
       .filter((m) => m.role !== 'system')
@@ -46,10 +47,14 @@ export class Summarizer {
     const systemPrompt = renderPromptTemplate(this.systemPrompt, variables)
 
     try {
-      const response = await this.model.invoke([
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: conversationText },
-      ])
+      const response = await this.model.invoke(
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: conversationText },
+        ],
+        { signal }
+      )
+      signal?.throwIfAborted()
       const summaryText =
         typeof response.content === 'string'
           ? response.content
@@ -68,6 +73,7 @@ export class Summarizer {
         createdAt: Date.now(),
       }
     } catch (error) {
+      signal?.throwIfAborted()
       console.error('Summary generation failed:', error)
       return {
         level,

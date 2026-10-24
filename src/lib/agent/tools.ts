@@ -4,7 +4,6 @@ import type { StructuredTool } from '@langchain/core/tools'
 import type { NewsQueryService } from '@lib/news/index.js'
 import { formatNewsArticles, type NewsArticle } from '@lib/telegram/util.js'
 import logger from '@lib/logger.js'
-import { createRetrievalTools, type ChatRetrieval } from './retrieval.js'
 
 function safeEvaluate(expression: string): number {
   const sanitized = expression.replace(/[^0-9+\-*/.()\s]/g, '')
@@ -189,7 +188,8 @@ export function createRecentNewsTool(
         const chatId = z.string().min(1).parse(config.configurable?.newsChatId)
         const articles = await newsQueryService.fetchAndGetRecentNewsForChat(
           count,
-          chatId
+          chatId,
+          config.signal
         )
 
         if (articles.length === 0) {
@@ -208,6 +208,7 @@ export function createRecentNewsTool(
 
         return header + formatted
       } catch (error) {
+        config.signal?.throwIfAborted()
         logger.error(
           {
             event: 'news.tool.error',
@@ -237,9 +238,6 @@ export function createRecentNewsTool(
 }
 
 export interface AgentToolDependencies {
-  retrieval?: ChatRetrieval
-  retrievalSearch?: boolean
-  retrievalRead?: boolean
   newsQueryService?: NewsQueryService
   supportsWebSearch?: boolean
 }
@@ -254,13 +252,6 @@ export function createAgentTools(
   if (shouldIncludeNewsTool) {
     tools.push(createRecentNewsTool(newsQueryService))
   }
-  if (deps.retrieval)
-    tools.push(
-      ...createRetrievalTools(deps.retrieval, {
-        search: deps.retrievalSearch ?? false,
-        read: deps.retrievalRead ?? false,
-      })
-    )
 
   return tools
 }

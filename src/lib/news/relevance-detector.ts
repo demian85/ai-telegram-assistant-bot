@@ -57,8 +57,10 @@ export class RelevanceDetector {
 
   async detectRelevance(
     item: NewsItem,
-    filter: Pick<NewsFilter, 'description'>
+    filter: Pick<NewsFilter, 'description'>,
+    signal?: AbortSignal
   ): Promise<RelevanceResult | null> {
+    signal?.throwIfAborted()
     try {
       const { answers, model, usage } = await this.model.invoke(
         {
@@ -68,8 +70,10 @@ export class RelevanceDetector {
             description: item.description?.slice(0, 3000),
           },
         },
-        relevanceQuestions
+        relevanceQuestions,
+        signal
       )
+      signal?.throwIfAborted()
       const confidence = answers.eligibility.confidence
       if (confidence < this.minimumConfidence) {
         logger.info(
@@ -103,6 +107,7 @@ export class RelevanceDetector {
       )
       return this.result(decision)
     } catch (error) {
+      signal?.throwIfAborted()
       if (error instanceof DecisionRateLimitError) throw error
       logger.error(
         {

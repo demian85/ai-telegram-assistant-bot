@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { addAbortListener } from 'node:events'
 import type { Redis } from 'ioredis'
 import { z } from 'zod'
 import logger from '@lib/logger.js'
@@ -25,10 +26,17 @@ type EvaluationContext = {
   readonly chatId: string
   readonly filter: NewsFilter
   readonly budget?: NewsEvaluationBudget
+  readonly signal?: AbortSignal
+}
+
+type PendingEvaluation = {
+  readonly promise: Promise<RelevanceResult | null>
+  readonly controller: AbortController
+  consumers: number
 }
 
 export class ChatNewsFilter {
-  private readonly pending = new Map<string, Promise<RelevanceResult | null>>()
+  private readonly pending = new Map<string, PendingEvaluation>()
   private evaluationTail: Promise<void> = Promise.resolve()
 
   constructor(
@@ -41,6 +49,7 @@ export class ChatNewsFilter {
     context: EvaluationContext,
     item: NewsItem
   ): Promise<RelevanceResult | null> {
+    context.signal?.throwIfAborted()
     const fingerprint = createHash('sha256')
       .update(
         JSON.stringify([
@@ -53,14 +62,38 @@ export class ChatNewsFilter {
       )
       .digest('hex')
     const key = `news:chat-decision:${context.chatId}:${item.id}:${fingerprint}`
-    const pending = this.pending.get(key)
-    if (pending) return pending
-    const evaluation = this.evaluateDecision(context, item, key)
-    this.pending.set(key, evaluation)
+    let pending = this.pending.get(key)
+    if (!pending) {
+      const controller = new AbortController()
+      const promise = this.evaluateDecision(
+        { ...context, signal: controller.signal },
+        item,
+        key
+      ).finally(() => {
+        if (this.pending.get(key)?.controller === controller)
+          this.pending.delete(key)
+      })
+      pending = { promise, controller, consumers: 0 }
+      this.pending.set(key, pending)
+    }
+    pending.consumers++
+    const signal = context.signal
+    let listener: Disposable | undefined
     try {
-      return await evaluation
+      if (!signal) return await pending.promise
+      return await Promise.race([
+        pending.promise,
+        new Promise<never>((_, reject) => {
+          listener = addAbortListener(signal, () => reject(signal.reason))
+        }),
+      ])
     } finally {
-      this.pending.delete(key)
+      listener?.[Symbol.dispose]()
+      pending.consumers--
+      if (pending.consumers === 0 && this.pending.get(key) === pending) {
+        this.pending.delete(key)
+        pending.controller.abort(signal?.reason)
+      }
     }
   }
 
@@ -71,6 +104,7 @@ export class ChatNewsFilter {
   ): Promise<RelevanceResult | null> {
     const logContext = { chatId: context.chatId, itemId: item.id }
     const cached = await this.redis.get(key)
+    context.signal?.throwIfAborted()
     if (cached !== null) {
       logger.debug(
         { ...logContext, event: 'news.decision.cache_hit' },
@@ -107,6 +141,7 @@ export class ChatNewsFilter {
     this.evaluationTail = promise
     await previous
     try {
+      context.signal?.throwIfAborted()
       return await this.requestDecision(context, item, key, retry)
     } finally {
       releaseEvaluation()
@@ -119,9 +154,11 @@ export class ChatNewsFilter {
     key: string,
     retry: z.infer<typeof retrySchema> | null
   ): Promise<RelevanceResult | null> {
+    context.signal?.throwIfAborted()
     const logContext = { chatId: context.chatId, itemId: item.id }
     const cooldownKey = `news:provider-cooldown:${this.detector.providerKey}`
     const cooldownRaw = await this.redis.get(cooldownKey)
+    context.signal?.throwIfAborted()
     if (
       cooldownRaw !== null &&
       cooldownSchema.parse(JSON.parse(cooldownRaw)) > Date.now()
@@ -146,8 +183,14 @@ export class ChatNewsFilter {
     )
     let result: RelevanceResult | null
     try {
-      result = await this.detector.detectRelevance(item, context.filter)
+      result = await this.detector.detectRelevance(
+        item,
+        context.filter,
+        context.signal
+      )
+      context.signal?.throwIfAborted()
     } catch (error) {
+      context.signal?.throwIfAborted()
       if (!(error instanceof DecisionRateLimitError)) throw error
       const delayMs = Math.ceil(Math.max(1000, error.retryAfterMs))
       const nextRetryAt = Date.now() + delayMs

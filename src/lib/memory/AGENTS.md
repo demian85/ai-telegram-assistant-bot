@@ -15,7 +15,8 @@ Builds conversation context from raw Redis history and daily/weekly/monthly summ
 
 ## Contracts
 
-- `MemoryManager.addMessage()` writes raw history, then synchronously checks daily, weekly, and monthly summary generation. A persistence call can therefore invoke the summarizer model.
+- `MemoryManager.addMessage()` writes raw history, then incoming user messages synchronously check daily, weekly, and monthly summary generation. Assistant writes do not trigger summarization, so a completed answer cannot be stored and then discarded because of a summary timeout. If the assistant crosses the five-message threshold, the next incoming message checks summaries.
+- Agent invocations pass their cancellation signal through persistence to daily summarization. Cancellation propagates instead of saving an unavailable-summary fallback.
 - The context window returns 15 raw messages by default plus up to 7 daily, 4 weekly, and 3 monthly summaries. `types.ts` supplies the raw-buffer and 1/7/30-day interval defaults; `MemoryManager` merges constructor overrides, passed through `AgentService.memoryConfig`. Summary-count limits remain fixed in `getContextWindow()`.
 - Daily summaries require at least five messages in the period and call `Summarizer`. Weekly summaries require three daily summaries; monthly summaries require two weekly summaries. Weekly/monthly text is aggregated and truncated from existing summaries, without another model call.
 - `MemoryManager` and `Summarizer` require the configured summarizer system template. It supports `{{level}}`, `{{period}}`, `{{startTime}}`, `{{endTime}}`, and `{{messageCount}}`; UTC timestamps and non-system message counts are supplied at invocation. The rendered instructions are a system message and the literal transcript is a separate user message. There is no internal prompt fallback.
