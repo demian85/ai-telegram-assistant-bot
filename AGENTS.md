@@ -12,6 +12,13 @@ Node 24/npm TypeScript Telegram bot. Telegraf routes messages, a LangChain agent
 - A session started at the repository root may initially receive only this file. Read the relevant child guide explicitly when entering its scope; do not assume all nested guides were preloaded.
 - For changes spanning modules, read each affected guide. Keep shared contracts here and domain details in the children.
 
+## Git workflow
+
+1. Before starting work or editing files, run `git status --short --branch`. If there are any uncommitted tracked or untracked changes, abort the task and notify the user. Do not stash, discard, overwrite, or commit those existing changes to proceed.
+2. Always start work from `main`. With a clean working tree, switch to `main`, fetch `origin`, and update with `git merge --ff-only origin/main`. If the update cannot fast-forward, stop and notify the user.
+3. Before making changes on `main`, create a new, descriptive task branch. Make all task changes and commits on that branch; never commit task changes directly to `main`.
+4. After making changes, run the relevant checks, commit the completed task changes, and push the branch. For a new branch, use `git push -u origin <branch>`. Do not leave completed work uncommitted or unpushed. If validation, committing, or pushing fails, report the failure and preserve the work for recovery.
+
 ## Structure
 
 ```text
