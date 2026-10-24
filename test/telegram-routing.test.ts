@@ -44,6 +44,7 @@ afterEach(() => {
 })
 
 class StubAgentService {
+  readonly purposes: Array<'chat' | 'summary'> = []
   readonly chatTypes: Array<'private' | 'group'> = []
   readonly persisted: Array<{
     chatId: string
@@ -76,9 +77,11 @@ class StubAgentService {
   async invokeLive(
     chatId: string,
     input: Record<string, unknown>,
-    chatType: 'private' | 'group'
+    chatType: 'private' | 'group',
+    purpose: 'chat' | 'summary' = 'chat'
   ): Promise<string> {
     this.chatTypes.push(chatType)
+    this.purposes.push(purpose)
     this.invocations.push({ chatId, input })
     return this.response
   }
@@ -957,7 +960,10 @@ test('uses native rich Markdown for generated news summaries too', async () => {
   })
   const response =
     '## Summary\n\n**News** with `file_name` and [details](https://example.com)'
-  const { telegraf } = createBotHarness({ response, newsQueryService })
+  const { telegraf, agentService } = createBotHarness({
+    response,
+    newsQueryService,
+  })
 
   const ctx = await telegraf.dispatch(
     createTextUpdate({
@@ -969,6 +975,7 @@ test('uses native rich Markdown for generated news summaries too', async () => {
   )
 
   expect(ctx.replyLog).toEqual([])
+  expect(agentService.purposes).toEqual(['summary'])
   expect(telegraf.sentRichMessages[0]?.content).toEqual({ markdown: response })
 })
 

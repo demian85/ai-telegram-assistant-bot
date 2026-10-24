@@ -689,7 +689,8 @@ export class Bot {
             {
               text: prompt,
             },
-            ctx.chatType
+            ctx.chatType,
+            'summary'
           )
 
           await this.replyWithAgentMarkdown(

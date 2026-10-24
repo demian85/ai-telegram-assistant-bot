@@ -32,6 +32,14 @@ export const llmRoleConfigSchema = z.strictObject({
 export const chatRoleConfigSchema = llmRoleConfigSchema
   .omit({ systemPrompt: true })
   .extend({
+    search: z
+      .strictObject({
+        web: z.enum(['off', 'auto', 'on']),
+        x: z.boolean(),
+        scrape: z.boolean(),
+        citations: z.boolean(),
+      })
+      .optional(),
     systemPrompts: z.strictObject({
       private: promptTemplateSchema(chatPromptVariables),
       group: promptTemplateSchema(chatPromptVariables),
@@ -43,6 +51,7 @@ const summarizerRoleConfigSchema = llmRoleConfigSchema.extend({
 })
 
 export const llmConfigSchema = z.strictObject({
+  provider: z.enum(['openai-compatible', 'venice']).optional(),
   apiKeyEnvVar: z.string(),
   baseUrl: z.string(),
   roles: z.strictObject({

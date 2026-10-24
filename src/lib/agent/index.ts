@@ -1,4 +1,6 @@
 import { createAgent, type ReactAgent } from 'langchain'
+import { createHash } from 'node:crypto'
+import { citedResponse } from '../llm/response.js'
 import { ChatOpenAI } from '@langchain/openai'
 import type { MessageContent } from '@langchain/core/messages'
 import type { StructuredTool } from '@langchain/core/tools'
@@ -36,6 +38,7 @@ export class AgentService {
   private readonly tools: StructuredTool[]
   private readonly systemPrompts: ChatSystemPrompts
   private agent: ReactAgent | null = null
+  private readonly summaryModel: ChatOpenAI
 
   constructor(config: AgentServiceConfig) {
     this.memoryManager = new MemoryManager(
@@ -45,6 +48,7 @@ export class AgentService {
       config.memoryConfig
     )
     this.model = config.agentModel
+    this.summaryModel = config.summarizerModel
     this.supportsVision = config.supportsVision
     this.tools = config.tools
     this.systemPrompts = config.systemPrompts
@@ -59,6 +63,23 @@ export class AgentService {
     this.agent = createAgent({
       model: this.model,
       tools: this.tools,
+      middleware: [
+        {
+          name: 'chat-purpose',
+          wrapModelCall: (request, handler) => {
+            const summary = request.runtime.configurable?.purpose === 'summary'
+            return handler({
+              ...request,
+              model: summary ? this.summaryModel : request.model,
+              tools: summary ? [] : request.tools,
+              modelSettings: {
+                ...request.modelSettings,
+                promptCacheKey: request.runtime.configurable?.promptCacheKey,
+              },
+            })
+          },
+        },
+      ],
     })
   }
 
@@ -94,7 +115,8 @@ export class AgentService {
   async invokeLive(
     chatId: string,
     input: AgentLiveInvocationInput,
-    chatType: TelegramChatScopeType
+    chatType: TelegramChatScopeType,
+    purpose: 'chat' | 'summary' = 'chat'
   ): Promise<string> {
     if (!this.agent) {
       throw new Error('Agent not initialized. Call initialize() first.')
@@ -126,10 +148,20 @@ export class AgentService {
         'Agent invoke starting'
       )
 
+      const cacheKey = createHash('sha256')
+        .update(`${purpose}:${chatId}:${this.model.model}`)
+        .digest('hex')
       const result = await this.agent.invoke(
         { messages },
         {
-          configurable: { newsChatId: chatId.replace(/^(private|group):/, '') },
+          configurable: {
+            newsChatId: chatId.replace(/^(private|group):/, ''),
+            chatScope: chatId,
+            retrievalBudget: { remaining: 3 },
+            purpose,
+            promptCacheKey: cacheKey,
+          },
+          recursionLimit: 12,
         }
       )
 
@@ -154,9 +186,9 @@ export class AgentService {
         'Agent invoke completed'
       )
 
-      const responseText = extractTextContent(
-        lastMessage.content as MessageContent
-      )
+      const responseText = citedResponse(lastMessage, {
+        includeSourceList: chatType !== 'group',
+      })
 
       await this.memoryManager.addMessage(chatId, {
         role: 'assistant',
