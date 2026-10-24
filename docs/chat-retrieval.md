@@ -48,10 +48,10 @@ there is no padding or artificial warming in normal bot operation.
 `llm.usage` logs per-call token/cache metadata, including agent tool-loop calls.
 `retrieval.cache_hit` identifies application cache hits separately.
 
-Provider source metadata is rendered into a Sources list. Native `^N^` markers
-are mapped to source links when metadata is present. Standard URL annotations
-are supported too. If the provider supplies only links in the answer, those
-links remain; the bot does not fabricate source metadata.
+Native model text, citation markers, links, and any model-written source list
+are preserved unchanged. Private replies may append a Sources list from provider
+metadata; group replies skip that addition. Retrieval tool results retain the
+metadata source list internally so the model can use it when composing an answer.
 
 ## Verification
 

@@ -186,7 +186,9 @@ export class AgentService {
         'Agent invoke completed'
       )
 
-      const responseText = citedResponse(lastMessage)
+      const responseText = citedResponse(lastMessage, {
+        includeSourceList: chatType !== 'group',
+      })
 
       await this.memoryManager.addMessage(chatId, {
         role: 'assistant',

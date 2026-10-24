@@ -24,9 +24,11 @@ const rawSchema = z.object({
 })
 
 export function citedResponse(
-  message: Pick<AIMessage, 'content' | 'additional_kwargs'>
+  message: Pick<AIMessage, 'content' | 'additional_kwargs'>,
+  options: { readonly includeSourceList?: boolean } = {}
 ): string {
   const text = extractTextContent(message.content)
+  if (options.includeSourceList === false) return text
   const raw = rawSchema.safeParse(message.additional_kwargs?.__raw_response)
   if (!raw.success) return text
   const candidates = [
@@ -36,9 +38,8 @@ export function citedResponse(
     ) ?? []),
   ]
   const urls = new Set<string>()
-  const references = new Map<string, string>()
   const sources: string[] = []
-  for (const [index, candidate] of candidates.entries()) {
+  for (const candidate of candidates) {
     const annotation = z
       .object({ url_citation: z.unknown() })
       .safeParse(candidate)
@@ -47,7 +48,6 @@ export function citedResponse(
     )
     if (!parsed.success) continue
     const url = parsed.data.url.replace(/[<>]/g, encodeURIComponent)
-    references.set(String(index + 1), url)
     if (urls.has(parsed.data.url)) continue
     urls.add(parsed.data.url)
     const label = (parsed.data.title ?? `Source ${sources.length + 1}`).replace(
@@ -56,12 +56,8 @@ export function citedResponse(
     )
     sources.push(`[${label}](<${url}>)`)
   }
-  const linked = text.replace(/\^(\d+)\^/g, (marker, index: string) => {
-    const url = references.get(index)
-    return url ? `[${index}](<${url}>)` : marker
-  })
   return sources.length
-    ? `${linked}\n\nSources:\n${sources.map((source) => `- ${source}`).join('\n')}`
+    ? `${text}\n\nSources:\n${sources.map((source) => `- ${source}`).join('\n')}`
     : text
 }
 
