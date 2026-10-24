@@ -31,7 +31,11 @@ const requestSchema = z.object({
 })
 function recordingModel(
   model: string,
-  requests: z.infer<typeof requestSchema>[]
+  requests: z.infer<typeof requestSchema>[],
+  replies?: readonly {
+    readonly content: string
+    readonly citations?: readonly unknown[]
+  }[]
 ) {
   return new ChatOpenAI({
     model,
@@ -41,6 +45,7 @@ function recordingModel(
     configuration: {
       fetch: async (_url, init) => {
         requests.push(requestSchema.parse(JSON.parse(String(init?.body))))
+        const reply = replies?.[requests.length - 1]
         return Response.json({
           id: 'test',
           object: 'chat.completion',
@@ -50,13 +55,22 @@ function recordingModel(
             {
               index: 0,
               finish_reason: 'stop',
-              message: { role: 'assistant', content: 'evidence [1]' },
+              message: {
+                role: 'assistant',
+                content: reply?.content ?? 'evidence [1]',
+              },
             },
           ],
           venice_parameters: {
-            web_search_citations: [
-              { url: 'https://example.com/article', title: 'Article' },
-            ],
+            web_search_citations: reply
+              ? (reply.citations ?? [])
+              : [
+                  {
+                    url: 'https://example.com/article',
+                    title: 'Article',
+                    content: 'Retrieved article evidence.',
+                  },
+                ],
           },
           usage: {
             prompt_tokens: 2000,
@@ -397,3 +411,50 @@ test('does not cache provider errors and allows a later attempt', async () => {
   expect(attempts).toBe(2)
   expect(writes).not.toHaveBeenCalled()
 })
+
+test.each(['search', 'read'] as const)(
+  'does not cache %s failure completions that echo a URL',
+  async (kind) => {
+    const requests: z.infer<typeof requestSchema>[] = []
+    const url = 'https://example.com/article'
+    const failure = `Unable to read ${url}`
+    const model = recordingModel('retrieval', requests, [
+      { content: failure },
+      {
+        content: 'Recovered evidence [1]',
+        citations: [{ url, content: 'The successfully retrieved article.' }],
+      },
+    ])
+    const redis = new InMemoryRedis()
+    const writes = vi.spyOn(redis, 'setex')
+    const retrieval = new ChatRetrieval(model, redis.asRedis())
+    expect(await retrieval.retrieve(kind, url, 'private:1')).toContain(failure)
+    expect(writes).not.toHaveBeenCalled()
+    const recovered = await retrieval.retrieve(kind, url, 'private:1')
+    expect(recovered).toContain('Recovered evidence [1]')
+    expect(await retrieval.retrieve(kind, url, 'private:1')).toBe(recovered)
+    expect(requests).toHaveLength(2)
+    expect(writes).toHaveBeenCalledTimes(1)
+  }
+)
+
+test.each(['', '   '])(
+  'does not treat empty source evidence %j as a cacheable retrieval',
+  async (content) => {
+    const requests: z.infer<typeof requestSchema>[] = []
+    const url = 'https://example.com/article'
+    const failure = `Unable to read ${url}`
+    const reply = {
+      content: failure,
+      citations: [{ url, title: 'Article', content }],
+    }
+    const model = recordingModel('retrieval', requests, [reply, reply])
+    const redis = new InMemoryRedis()
+    const writes = vi.spyOn(redis, 'setex')
+    const retrieval = new ChatRetrieval(model, redis.asRedis())
+    await retrieval.retrieve('read', url, 'private:1')
+    await retrieval.retrieve('read', url, 'private:1')
+    expect(requests).toHaveLength(2)
+    expect(writes).not.toHaveBeenCalled()
+  }
+)

@@ -143,11 +143,14 @@ Important config areas:
 - `news.defaultFilter` - natural-language selection instructions for new chats and `/newsfilter reset`
 - `llm.apiKeyEnvVar` - env var holding the provider API key
 - `llm.baseUrl` - shared provider API base URL for generative and decision requests; the suggested Venice URL is `https://api.venice.ai/api/v1`
-- `llm.provider` - `venice` or `openai-compatible`; provider request fields are isolated in the LLM adapter. Set `openai-compatible` explicitly when switching the shipped configuration to another provider.
+- `llm.provider` - `venice` or `openai-compatible`; provider request fields are isolated in the LLM adapter. When omitted in a nonempty override, infer it from the resolved base URL rather than inheriting the defaults provider.
 - `llm.roles.chat.search` - `{ "web": "auto", "x": true, "scrape": true, "citations": true }`. Use plain model IDs; search suffixes are rejected. These settings belong only to normal private/group chat. `supportsWebSearch` is retained for compatibility and does not enable retrieval.
+
 - `llm.roles.newsPreferences` - model and system prompt that convert user descriptions into filtering instructions
 - `llm.roles.chat` - conversational model and required `systemPrompts.private` / `systemPrompts.group`
 - `llm.roles.summarizer` - memory model and required `systemPrompt` template
+
+Existing nonempty overrides that omit `llm.roles.chat.search` keep native retrieval disabled. Add explicit search settings to opt in. With no override or an empty override, the defaults apply.
 
 Preference generation and news decisions share `llm.baseUrl` and the API key. Set `llm.roles.newsPreferences.model` to a generative model that supports structured JSON output, and select the article evaluator with `news.decisionModel`. Eligibility instructions and coverage criteria are defined in application code and contribute to the decision cache fingerprint. The decision model receives your original preferences once, alongside the article title and description; compiled criteria remain available for inspection.
 

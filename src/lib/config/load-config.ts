@@ -30,9 +30,13 @@ export function loadAppConfig(options: LoadAppConfigOptions = {}): AppConfig {
   const override = appConfigSchema.parse(input, {
     error: (issue) => `${userConfigPath}: ${z.locales.en().localeError(issue)}`,
   })
-  return mergeWith(defaults, override, (_base, value: unknown) =>
+  const config = mergeWith(defaults, override, (_base, value: unknown) =>
     Array.isArray(value) ? value : undefined
   )
+  if (override.llm.provider === undefined) delete config.llm.provider
+  if (override.llm.roles.chat.search === undefined)
+    delete config.llm.roles.chat.search
+  return config
 }
 
 function readJsonFile(filePath: string): unknown {

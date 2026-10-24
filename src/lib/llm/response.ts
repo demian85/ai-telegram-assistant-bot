@@ -9,6 +9,7 @@ const citationSchema = z.object({
     .url()
     .refine((value) => ['https:', 'http:'].includes(new URL(value).protocol)),
   title: z.string().optional(),
+  content: z.string().optional(),
 })
 const rawSchema = z.object({
   venice_parameters: z
@@ -23,34 +24,41 @@ const rawSchema = z.object({
     .optional(),
 })
 
-export function citedResponse(
-  message: Pick<AIMessage, 'content' | 'additional_kwargs'>,
-  options: { readonly includeSourceList?: boolean } = {}
-): string {
-  const text = extractTextContent(message.content)
-  if (options.includeSourceList === false) return text
+export function responseSources(
+  message: Pick<AIMessage, 'additional_kwargs'>
+): readonly z.infer<typeof citationSchema>[] {
   const raw = rawSchema.safeParse(message.additional_kwargs?.__raw_response)
-  if (!raw.success) return text
+  if (!raw.success) return []
   const candidates = [
     ...(raw.data.venice_parameters?.web_search_citations ?? []),
     ...(raw.data.choices?.flatMap(
       (choice) => choice.message.annotations ?? []
     ) ?? []),
   ]
-  const urls = new Set<string>()
-  const sources: string[] = []
-  for (const candidate of candidates) {
+  return candidates.flatMap((candidate) => {
     const annotation = z
       .object({ url_citation: z.unknown() })
       .safeParse(candidate)
     const parsed = citationSchema.safeParse(
       annotation.success ? annotation.data.url_citation : candidate
     )
-    if (!parsed.success) continue
-    const url = parsed.data.url.replace(/[<>]/g, encodeURIComponent)
-    if (urls.has(parsed.data.url)) continue
-    urls.add(parsed.data.url)
-    const label = (parsed.data.title ?? `Source ${sources.length + 1}`).replace(
+    return parsed.success ? [parsed.data] : []
+  })
+}
+
+export function citedResponse(
+  message: Pick<AIMessage, 'content' | 'additional_kwargs'>,
+  options: { readonly includeSourceList?: boolean } = {}
+): string {
+  const text = extractTextContent(message.content)
+  if (options.includeSourceList === false) return text
+  const urls = new Set<string>()
+  const sources: string[] = []
+  for (const source of responseSources(message)) {
+    const url = source.url.replace(/[<>]/g, encodeURIComponent)
+    if (urls.has(source.url)) continue
+    urls.add(source.url)
+    const label = (source.title ?? `Source ${sources.length + 1}`).replace(
       /[[\]\\\r\n]/g,
       ' '
     )

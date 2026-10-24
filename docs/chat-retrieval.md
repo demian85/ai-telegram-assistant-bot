@@ -18,6 +18,9 @@ adapter sends no Venice fields and rejects enabled native retrieval, since
 OpenAI-compatible chat completions do not define a universal search protocol.
 Supporting another provider requires implementing its parameter mapping in
 the adapter. Switching `baseUrl` alone does not create native search support.
+For nonempty overrides, omitted search settings disable retrieval, and an
+omitted provider is inferred from the resolved base URL. Explicit settings
+remain authoritative. Empty or absent overrides continue using the defaults.
 For Venice, startup checks the standard `/models` catalog for required
 function-calling, web-search, and X-search capabilities.
 
@@ -36,7 +39,12 @@ function-calling, web-search, and X-search capabilities.
   reasoning usage is not a hard spend cap.
 - Search cache TTL is five minutes; URL-reading cache TTL is one hour. Cache
   identity includes chat scope, model, provider options, operation, and input.
-  Cache writes require a source URL; provider errors are not cached.
+  Cache writes require a validated source URL and nonempty evidence content in
+  structured provider metadata. Echoed URLs and source links without evidence
+  are not sufficient. Responses without that metadata remain usable but are
+  not cached, even if their native text appears successful. Provider errors
+  are not cached. The cache version bypasses entries created by the older
+  URL-only check.
   Concurrent identical retrieval requests share one inference.
 
 ## Prompt caching and sources
@@ -58,13 +66,13 @@ metadata source list internally so the model can use it when composing an answer
 Run offline checks with `npm test`, `npm run tscheck`, `npm run lint`,
 `npm run format:check`, and `npm run build`.
 
-`node --import tsx scripts/verify-chat-retrieval.ts` makes six paid inference
+`node --import tsx scripts/verify-chat-retrieval.ts` makes up to seven paid inference
 calls plus one catalog request. It loads the configured API key without
 printing it, sends no Telegram messages, and uses an in-memory Redis double.
 It records responses and cache usage in a fresh temporary directory and prints
 the output path. Generated captures are not stored in the repository.
 The cache probe repeats the repository README as a controlled reference.
-Use `--tools-only` for one live URL-tool/cache verification without running
+Use `--tools-only` for a live URL-tool/cache verification (up to two paid calls) without running
 the other probes. It requires no previous capture. The Redis double proves
 result reuse but not real Redis expiry.
 

@@ -5,7 +5,7 @@ import type { Redis } from 'ioredis'
 import { tool } from '@langchain/core/tools'
 import type { StructuredTool } from '@langchain/core/tools'
 import { z } from 'zod'
-import { citedResponse } from '../llm/response.js'
+import { citedResponse, responseSources } from '../llm/response.js'
 import logger from '../logger.js'
 
 export const publicUrlSchema = z.url().refine((value) => {
@@ -38,6 +38,7 @@ export class ChatRetrieval {
     const key = `chat:retrieval:${createHash('sha256')
       .update(
         JSON.stringify([
+          'sourced-evidence-v1',
           scope,
           (kind === 'read' ? this.reader : this.model).clientConfig.baseURL,
           (kind === 'read' ? this.reader : this.model).model,
@@ -96,7 +97,7 @@ export class ChatRetrieval {
         'Retrieved evidence exceeded the size limit; narrow the request'
       )
     const result = `Retrieved at ${new Date().toISOString()}\n${text}`
-    if (/https?:\/\//.test(text)) {
+    if (responseSources(response).some((source) => source.content?.trim())) {
       await this.redis.setex(key, kind === 'search' ? 300 : 3600, result)
     }
     return result

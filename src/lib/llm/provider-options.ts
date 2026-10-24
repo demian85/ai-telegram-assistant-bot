@@ -88,7 +88,13 @@ export async function validateChatCapabilities(
     (new URL(config.llm.baseUrl).hostname === 'api.venice.ai'
       ? 'venice'
       : 'openai-compatible')
-  if (provider !== 'venice' || !config.llm.roles.chat.search) return
+  const search = config.llm.roles.chat.search
+  if (
+    provider !== 'venice' ||
+    !search ||
+    (search.web === 'off' && !search.x && !search.scrape)
+  )
+    return
   const client = new OpenAI({
     apiKey: process.env[config.llm.apiKeyEnvVar],
     baseURL: config.llm.baseUrl,
