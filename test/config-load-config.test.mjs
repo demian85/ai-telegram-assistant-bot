@@ -41,7 +41,6 @@ function createDefaultsConfigJson() {
         roles: {
           newsPreferences: {
             model: 'preference-default',
-            supportsVision: false,
             systemPrompt: 'preference prompt',
           },
           chat: {
@@ -54,7 +53,6 @@ function createDefaultsConfigJson() {
           },
           summarizer: {
             model: 'summarizer-default',
-            supportsVision: true,
             systemPrompt: 'summarizer default prompt',
           },
         },
@@ -89,7 +87,6 @@ test('loadAppConfig deep-merges objects while replacing arrays and scalars', () 
             roles: {
               newsPreferences: {
                 model: 'preference-default',
-                supportsVision: false,
                 systemPrompt: 'preference prompt',
               },
               chat: {
@@ -102,7 +99,6 @@ test('loadAppConfig deep-merges objects while replacing arrays and scalars', () 
               },
               summarizer: {
                 model: 'summarizer-default',
-                supportsVision: true,
                 systemPrompt: 'summarizer default prompt',
               },
             },
@@ -134,7 +130,6 @@ test('loadAppConfig deep-merges objects while replacing arrays and scalars', () 
         roles: {
           newsPreferences: {
             model: 'preference-default',
-            supportsVision: false,
             systemPrompt: 'preference prompt',
           },
           chat: {
@@ -147,7 +142,6 @@ test('loadAppConfig deep-merges objects while replacing arrays and scalars', () 
           },
           summarizer: {
             model: 'summarizer-default',
-            supportsVision: true,
             systemPrompt: 'summarizer default prompt',
           },
         },

@@ -24,7 +24,6 @@ export interface AgentServiceConfig {
   agentModel: ChatOpenAI
   summarizerModel: ChatOpenAI
   supportsVision: boolean
-  supportsWebSearch?: boolean
   tools: StructuredTool[]
   readonly systemPrompts: ChatSystemPrompts
   readonly summarizerSystemPrompt: string
@@ -130,7 +129,6 @@ export class AgentService {
       const messages = this.buildAgentMessages(
         contextWindow,
         liveUserContent,
-        persistedUserContent,
         chatType
       )
 
@@ -225,7 +223,6 @@ export class AgentService {
   private buildAgentMessages(
     contextWindow: Awaited<ReturnType<MemoryManager['getContextWindow']>>,
     liveUserContent: MessageContent,
-    persistedUserContent: string,
     chatType: TelegramChatScopeType
   ): Array<{ role: 'system' | 'user' | 'assistant'; content: MessageContent }> {
     const summaryContext = this.formatSummaryContext(contextWindow)
@@ -246,7 +243,7 @@ export class AgentService {
       })),
       {
         role: 'user',
-        content: this.supportsVision ? liveUserContent : persistedUserContent,
+        content: liveUserContent,
       },
     ]
   }

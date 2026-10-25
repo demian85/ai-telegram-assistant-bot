@@ -18,7 +18,6 @@ test('generates and persists maximum-length preferences with complete provenance
     structuredModel(() => criteria),
     {
       model: 'generator',
-      supportsVision: false,
       systemPrompt: 'generation-role',
     }
   )
@@ -36,7 +35,6 @@ test('rejects overlength input before calling the provider', async () => {
   const respond = vi.fn(() => criteria)
   const generator = new NewsPreferenceGenerator(structuredModel(respond), {
     model: 'generator',
-    supportsVision: false,
     systemPrompt: 'generation-role',
   })
 

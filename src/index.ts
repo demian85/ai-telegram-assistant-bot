@@ -18,11 +18,7 @@ import {
   NewsPreferenceStore,
   NewsPreferenceGenerator,
 } from '@lib/news/preferences.js'
-import {
-  createLlmRoleModels,
-  llmSupportsVision,
-  llmSupportsWebSearch,
-} from '@lib/llm/model.js'
+import { createLlmRoleModels } from '@lib/llm/model.js'
 
 async function main() {
   const config: AppConfig = loadAppConfig()
@@ -51,10 +47,8 @@ async function main() {
     filter,
   })
 
-  const supportsWebSearch = llmSupportsWebSearch('chat', config)
   const tools = createAgentTools({
     newsQueryService,
-    supportsWebSearch,
   })
 
   const bot = new Bot(
@@ -64,8 +58,7 @@ async function main() {
       summarizerModel: models.summarizer,
       chatSystemPrompts: config.llm.roles.chat.systemPrompts,
       summarizerSystemPrompt: config.llm.roles.summarizer.systemPrompt,
-      supportsVision: llmSupportsVision('chat', config),
-      supportsWebSearch,
+      supportsVision: config.llm.roles.chat.supportsVision,
     },
     {
       redis,

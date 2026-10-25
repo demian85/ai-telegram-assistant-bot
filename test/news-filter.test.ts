@@ -189,7 +189,6 @@ test('generates validated preferences with the configured role and preserves ori
   const respond = vi.fn(() => criteria)
   const generator = new NewsPreferenceGenerator(structuredModel(respond), {
     model: 'generator-model',
-    supportsVision: false,
     systemPrompt: 'generator-role',
   })
   // When
@@ -213,7 +212,6 @@ test.each([
     structuredModel(() => output),
     {
       model: 'generator-model',
-      supportsVision: false,
       systemPrompt: 'generator-role',
     }
   )

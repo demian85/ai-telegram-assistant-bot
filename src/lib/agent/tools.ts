@@ -239,7 +239,6 @@ export function createRecentNewsTool(
 
 export interface AgentToolDependencies {
   newsQueryService?: NewsQueryService
-  supportsWebSearch?: boolean
 }
 
 export function createAgentTools(

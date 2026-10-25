@@ -28,7 +28,6 @@ function generator(output: unknown) {
     structuredModel(() => output),
     {
       model: 'generator',
-      supportsVision: false,
       systemPrompt: 'generation-role',
     }
   )

@@ -191,9 +191,11 @@ test('normalizes standard citations and rejects unsafe citation schemes', () => 
 })
 
 test('keeps the base tools available when retrieval is disabled', () => {
-  expect(
-    createAgentTools({ supportsWebSearch: true }).map((entry) => entry.name)
-  ).toEqual(['calculator', 'help', 'current_time'])
+  expect(createAgentTools().map((entry) => entry.name)).toEqual([
+    'calculator',
+    'help',
+    'current_time',
+  ])
 })
 
 test('retains personalized RSS retrieval when native search is enabled', () => {
@@ -203,9 +205,7 @@ test('retains personalized RSS retrieval when native search is enabled', () => {
     filter: harness.filter,
   })
   expect(
-    createAgentTools({ newsQueryService: query, supportsWebSearch: true }).map(
-      (entry) => entry.name
-    )
+    createAgentTools({ newsQueryService: query }).map((entry) => entry.name)
   ).toContain('get_recent_news')
 })
 

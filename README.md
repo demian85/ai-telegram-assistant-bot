@@ -31,7 +31,7 @@ This makes the bot usable as both a personal assistant in DMs and a passive-memo
 - Hierarchical memory with recent context plus daily, weekly, and monthly summaries
 - Optional vision support for photo messages
 - Tool-enabled responses with built-in calculator, help, and time tools
-- Configurable web-search-aware chat role (`supportsWebSearch`)
+- Configurable provider-native chat search (`llm.roles.chat.search`)
 - RSS news polling, relevance scoring, storage, and per-chat delivery
 - Persistent per-chat news preferences, exclusions, and delivery cadence
 - On-demand recent news retrieval and 24-hour news summaries
@@ -144,13 +144,16 @@ Important config areas:
 - `llm.apiKeyEnvVar` - env var holding the provider API key
 - `llm.baseUrl` - shared provider API base URL for generative and decision requests; the suggested Venice URL is `https://api.venice.ai/api/v1`
 - `llm.provider` - `venice` or `openai-compatible`; provider request fields are isolated in the LLM adapter. When omitted in a nonempty override, infer it from the resolved base URL rather than inheriting the defaults provider.
-- `llm.roles.chat.search` - `{ "web": "auto", "x": true, "scrape": true, "citations": true }`. Use plain model IDs; search suffixes are rejected. These settings belong only to normal private/group chat. `supportsWebSearch` is retained for compatibility and does not enable retrieval.
+- `llm.roles.chat.search` - `{ "web": "auto", "x": true, "scrape": true, "citations": true }`. Use plain model IDs; search suffixes are rejected. These settings belong only to normal private/group chat.
+- `llm.roles.chat.supportsVision` - whether to send the current photo to the chat model. History retains only an image marker, caption, and assistant text; images are not retained for subsequent turns.
 
 - `llm.roles.newsPreferences` - model and system prompt that convert user descriptions into filtering instructions
 - `llm.roles.chat` - conversational model and required `systemPrompts.private` / `systemPrompts.group`
 - `llm.roles.summarizer` - memory model and required `systemPrompt` template
 
 Existing nonempty overrides that omit `llm.roles.chat.search` keep native retrieval disabled. Add explicit search settings to opt in. With no override or an empty override, the defaults apply.
+
+`supportsWebSearch` is no longer accepted on any role. Remove it from existing configs and use `llm.roles.chat.search` instead. `supportsVision` is accepted only on `chat`; the summarizer and news-preference roles receive text and have native search disabled.
 
 Web search, X search, and URL reading are provider capabilities, not application tools. The Venice adapter sends `enable_web_search`, `enable_x_search`, `enable_web_scraping`, and `enable_web_citations` inside `venice_parameters` on the normal chat request. Venice performs retrieval when supported by the selected model; the bot does not make a second model call through a search tool. X search supplies current X evidence, not a guaranteed ranking of platform-wide trending topics. Summaries and preference generation disable these capabilities.
 
