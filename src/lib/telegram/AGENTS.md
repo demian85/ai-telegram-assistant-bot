@@ -54,7 +54,7 @@ Telegraf middleware routes authorized commands and ordinary text/photos into sco
 - `/subscribe`, `/unsubscribe`, `/interval`, and `/newsfilter` call the shared access check before reading or changing settings.
 - Private chats pass that check; allowed groups additionally require `administrator` or `creator` status from Telegram. Unlisted groups never reach this check.
 - Missing identity or failed membership lookup denies access with an explanatory reply.
-- `/newsfilter` delegates to `news-filter-command.ts`: view, generate/replace, or reset. Generation is serialized per chat in this single bot process; overlapping requests receive a retry message. Structured criteria and their source quotes are validated before persistence. `/topics` is removed.
+- `/newsfilter` delegates to `news-filter-command.ts`: view, generate/replace, or reset. Generation is serialized per chat in this single bot process; overlapping requests receive a retry message. Structured criteria and their source quotes are validated before persistence.
 - `/news` and `/summary` pass raw chat IDs to the shared filtering query service.
 
 ## Verification
