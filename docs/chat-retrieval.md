@@ -10,8 +10,7 @@ The personalized RSS tool remains available alongside general search.
 Search configuration is provider-neutral: `llm.roles.chat.search` contains
 `web` (`off`, `auto`, `on`), `x`, `scrape`, and `citations`. The LLM adapter
 translates these settings to the provider's chat-completion request fields.
-No search, scrape, or other provider-specific endpoints were added. The
-existing typed news-decision endpoint is unchanged.
+The news pipeline uses a separate typed decision endpoint.
 
 The Venice adapter supports these features. The generic `openai-compatible`
 adapter sends no Venice fields and rejects enabled native retrieval, since

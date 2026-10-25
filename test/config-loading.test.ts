@@ -37,12 +37,10 @@ const validDefaultsConfig = {
       },
       summarizer: {
         model: 'summarizer-model',
-        supportsVision: true,
         systemPrompt: 'Summarize this',
       },
       newsPreferences: {
         model: 'preference-model',
-        supportsVision: false,
         systemPrompt: 'Compile preferences',
       },
     },
@@ -162,7 +160,6 @@ describe('loadAppConfig', () => {
     const tempDir = createTempDir()
     const newRole = {
       model: 'preference-default',
-      supportsVision: false,
       systemPrompt: 'preference-role',
     }
     try {
@@ -220,7 +217,6 @@ describe('loadAppConfig', () => {
               ...validDefaultsConfig.llm.roles,
               newsPreferences: {
                 model: 42,
-                supportsVision: false,
                 systemPrompt: 'role',
               },
             },

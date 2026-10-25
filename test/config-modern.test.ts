@@ -17,51 +17,81 @@ afterEach(() => {
     rmSync(directory, { recursive: true, force: true })
 })
 
-test.each([false, true, undefined])(
-  'keeps omitted native search disabled for legacy supportsWebSearch=%s',
-  async (supportsWebSearch) => {
-    const { rootDir, config } = configuration()
-    const {
-      search: _search,
-      supportsWebSearch: _capability,
-      ...chat
-    } = config.llm.roles.chat
-    writeFileSync(
-      path.join(rootDir, 'config.json'),
-      JSON.stringify({
-        ...config,
-        llm: {
-          ...config.llm,
-          roles: {
-            ...config.llm.roles,
-            chat: {
-              ...chat,
-              model: 'legacy-chat-model',
-              ...(supportsWebSearch === undefined ? {} : { supportsWebSearch }),
-            },
-          },
-        },
+test.each([
+  { role: 'chat', property: 'supportsWebSearch' },
+  { role: 'summarizer', property: 'supportsWebSearch' },
+  { role: 'newsPreferences', property: 'supportsWebSearch' },
+  { role: 'summarizer', property: 'supportsVision' },
+  { role: 'newsPreferences', property: 'supportsVision' },
+] as const)('rejects unused config property: %j', ({ role, property }) => {
+  // Given
+  const { rootDir, config } = configuration()
+  const input = {
+    ...config,
+    llm: {
+      ...config.llm,
+      roles: {
+        ...config.llm.roles,
+        [role]: { ...config.llm.roles[role], [property]: true },
+      },
+    },
+  }
+
+  for (const filename of ['config.json', 'config.defaults.json']) {
+    writeFileSync(path.join(rootDir, filename), JSON.stringify(input))
+    // When / Then
+    expect(() => loadAppConfig({ rootDir })).toThrow(
+      expect.objectContaining({
+        message: expect.stringContaining(path.join(rootDir, filename)),
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            code: 'unrecognized_keys',
+            path: ['llm', 'roles', role],
+            keys: [property],
+          }),
+        ]),
       })
     )
-    vi.stubEnv(config.llm.apiKeyEnvVar, 'offline')
-    const fetch = vi.fn(() => {
-      throw new Error('Unexpected capability request')
-    })
-    vi.stubGlobal('fetch', fetch)
-    const resolved = loadAppConfig({ rootDir })
-    const models = createLlmRoleModels(resolved)
-    expect(resolved.llm.roles.chat.search).toBeUndefined()
-    expect(models.chat.modelKwargs).toMatchObject({
-      venice_parameters: {
-        enable_web_search: 'off',
-        enable_x_search: false,
-        enable_web_scraping: false,
+  }
+})
+
+test('keeps omitted native search disabled in a nonempty override', async () => {
+  const { rootDir, config } = configuration()
+  const { search: _search, ...chat } = config.llm.roles.chat
+  writeFileSync(
+    path.join(rootDir, 'config.json'),
+    JSON.stringify({
+      ...config,
+      llm: {
+        ...config.llm,
+        roles: {
+          ...config.llm.roles,
+          chat: {
+            ...chat,
+            model: 'legacy-chat-model',
+          },
+        },
       },
     })
-    await validateChatCapabilities(resolved)
-    expect(fetch).not.toHaveBeenCalled()
-  }
-)
+  )
+  vi.stubEnv(config.llm.apiKeyEnvVar, 'offline')
+  const fetch = vi.fn(() => {
+    throw new Error('Unexpected capability request')
+  })
+  vi.stubGlobal('fetch', fetch)
+  const resolved = loadAppConfig({ rootDir })
+  const models = createLlmRoleModels(resolved)
+  expect(resolved.llm.roles.chat.search).toBeUndefined()
+  expect(models.chat.modelKwargs).toMatchObject({
+    venice_parameters: {
+      enable_web_search: 'off',
+      enable_x_search: false,
+      enable_web_scraping: false,
+    },
+  })
+  await validateChatCapabilities(resolved)
+  expect(fetch).not.toHaveBeenCalled()
+})
 
 test('infers the provider from a legacy override URL instead of inheriting the defaults provider', async () => {
   const { rootDir, config } = configuration()

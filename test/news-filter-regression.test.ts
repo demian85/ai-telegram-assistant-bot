@@ -26,7 +26,6 @@ test('rejects the observed heading-only generator response', async () => {
     structuredModel(() => ({ instruction: '**News Selection Criteria**' })),
     {
       model: 'generator',
-      supportsVision: false,
       systemPrompt: 'generation-role',
     }
   )
@@ -77,7 +76,6 @@ test.each([
     structuredModel(() => criteria),
     {
       model: 'generator',
-      supportsVision: false,
       systemPrompt: 'generation-role',
     }
   )
@@ -107,7 +105,6 @@ test('preserves structured exclusions and title requirements with their source t
     structuredModel(() => criteria),
     {
       model: 'generator',
-      supportsVision: false,
       systemPrompt: 'generation-role',
     }
   )

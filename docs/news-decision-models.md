@@ -32,7 +32,7 @@ This is a news-section fragment, not a complete override file. The loader still 
 
 The shipped decision defaults are `decisionModel: "jev-latest"`, `decisionConfidenceThreshold: 0.8`, and `relevanceThreshold: 70`; the sample config uses coverage threshold 80. Set `llm.baseUrl` to your provider's API base URL and `llm.apiKeyEnvVar` to the name of the environment variable containing its key. Changing these shared settings also affects the generative roles.
 
-`llm.roles.newsPreferences.model` extracts preferences when `/newsfilter` changes them and must be explicitly configured. Chat and summaries use their configured generative models. Eligibility instructions and coverage criteria are defined in application code and contribute to the decision cache fingerprint. Article evaluation uses `news.decisionModel`, independently of the generative roles. The removed `llm.roles.newsRelevance` entry, `llm.defaultModel`, and `news.topics` are rejected; use `news.defaultFilter` for default preferences. Defaults and every nonempty override must define all three generative roles.
+`llm.roles.newsPreferences.model` extracts preferences when `/newsfilter` changes them and must be explicitly configured. Chat and summaries use their configured generative models. Eligibility instructions and coverage criteria are defined in application code and contribute to the decision cache fingerprint. Article evaluation uses `news.decisionModel`, independently of the generative roles. Use `news.defaultFilter` for default preferences. Defaults and every nonempty override must define all three generative roles.
 
 ## Coverage threshold and confidence threshold
 
@@ -55,7 +55,7 @@ One `eligibility` Choice combines substantive interest matching, explicit exclus
 
 The original preferences remain authoritative, including exceptions or title rules omitted by compilation. Compiled rules remain a compact, inspectable display in `/newsfilter`; existing structured records are rendered compactly without rewriting saved descriptions or criteria. Article text is untrusted input. Reasons are generated in application code from eligibility, without inventing separate interest/exclusion/title answers. There is no chat-completion fallback for article evaluation.
 
-Scheduled delivery, `/news`, `/summary`, and `get_recent_news` share this filter. Complete decisions use the existing 14-day cache. Its identity includes provider/base URL, model, decision version, questions, coverage/confidence thresholds, preference revision/original text, and the bounded title/description actually evaluated. Display-only instruction changes and unused article-body changes do not spend new requests. Old four-question and chat-model decisions are bypassed. Malformed, failed, and unresolved decisions remain uncached. Preference changes during evaluation still prevent stale delivery.
+Scheduled delivery, `/news`, `/summary`, and `get_recent_news` share this filter. Complete decisions use the existing 14-day cache. Its identity includes provider/base URL, model, decision version, questions, coverage/confidence thresholds, preference revision/original text, and the bounded title/description actually evaluated. Display-only instruction changes and unused article-body changes do not spend new requests. Malformed, failed, and unresolved decisions remain uncached. Preference changes during evaluation still prevent stale delivery.
 
 ## Verify a model change
 

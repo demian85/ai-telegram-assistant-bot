@@ -24,14 +24,13 @@ export const newsConfigSchema = z.strictObject({
 
 export const llmRoleConfigSchema = z.strictObject({
   model: z.string(),
-  supportsVision: z.boolean(),
-  supportsWebSearch: z.boolean().optional(),
   systemPrompt: z.string(),
 })
 
 export const chatRoleConfigSchema = llmRoleConfigSchema
   .omit({ systemPrompt: true })
   .extend({
+    supportsVision: z.boolean(),
     search: z
       .strictObject({
         web: z.enum(['off', 'auto', 'on']),

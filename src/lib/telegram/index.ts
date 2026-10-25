@@ -49,7 +49,6 @@ export interface BotModels {
   readonly chatSystemPrompts: ChatSystemPrompts
   readonly summarizerSystemPrompt: string
   supportsVision: boolean
-  supportsWebSearch?: boolean
 }
 
 export interface BotNewsArticle {
@@ -211,7 +210,6 @@ export class Bot {
         agentModel: models.agentModel,
         summarizerModel: models.summarizerModel,
         supportsVision: models.supportsVision,
-        supportsWebSearch: models.supportsWebSearch,
         tools: dependencies.tools ?? [],
         systemPrompts: models.chatSystemPrompts,
         summarizerSystemPrompt: models.summarizerSystemPrompt,

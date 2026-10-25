@@ -4,7 +4,6 @@ import { structuredModel } from './news-filter-helpers.js'
 
 const role = {
   model: 'generator',
-  supportsVision: false,
   systemPrompt: 'generation-role',
 }
 

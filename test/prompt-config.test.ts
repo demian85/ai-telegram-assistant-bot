@@ -1,13 +1,14 @@
 import { expect, test } from 'vitest'
 import { llmConfigSchema } from '../src/lib/config/schema.js'
 
-const role = { model: 'offline', supportsVision: false }
+const role = { model: 'offline' }
 const config = {
   apiKeyEnvVar: 'TEST_KEY',
   baseUrl: 'https://provider.test',
   roles: {
     chat: {
       ...role,
+      supportsVision: false,
       systemPrompts: {
         private: 'private={{chatType}}',
         group: 'group={{chatType}}',
@@ -31,7 +32,10 @@ test('rejects the retired shared chat prompt', () => {
   // Given
   const input = {
     ...config,
-    roles: { ...config.roles, chat: { ...role, systemPrompt: 'legacy' } },
+    roles: {
+      ...config.roles,
+      chat: { ...config.roles.chat, systemPrompt: 'legacy' },
+    },
   }
   // When
   const result = llmConfigSchema.safeParse(input)
@@ -50,7 +54,7 @@ test.each(['private', 'group'] as const)(
     // When
     const result = llmConfigSchema.safeParse({
       ...config,
-      roles: { ...config.roles, chat: { ...role, systemPrompts } },
+      roles: { ...config.roles, chat: { ...config.roles.chat, systemPrompts } },
     })
     // Then
     expect(result.success).toBe(false)
@@ -95,7 +99,7 @@ test.each(['', '   ', '{{unknown}}', '{{period}}', '{{chatType'])(
       roles: {
         ...config.roles,
         chat: {
-          ...role,
+          ...config.roles.chat,
           systemPrompts: { ...config.roles.chat.systemPrompts, group },
         },
       },

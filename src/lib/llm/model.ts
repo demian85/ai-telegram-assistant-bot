@@ -58,17 +58,6 @@ function createLlmModel(
   })
 }
 
-export function llmSupportsVision(role: LlmRole, config: AppConfig): boolean {
-  return config.llm.roles[role].supportsVision
-}
-
-export function llmSupportsWebSearch(
-  role: LlmRole,
-  config: AppConfig
-): boolean {
-  return config.llm.roles[role].supportsWebSearch ?? false
-}
-
 export function getLlmModelForRole(role: LlmRole, config: AppConfig): string {
   return config.llm.roles[role].model
 }
