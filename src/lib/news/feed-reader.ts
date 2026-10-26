@@ -22,7 +22,12 @@ export class FeedReader {
     const startTime = Date.now()
 
     try {
-      const feed = await extract(url, {}, { signal })
+      // HN rejects the extractor's Firefox identity; Lynx works for RSS requests.
+      const feed = await extract(
+        url,
+        {},
+        { signal, headers: { 'user-agent': 'Lynx/2.9.2' } }
+      )
       signal?.throwIfAborted()
       const items: NewsItem[] = []
       const now = new Date()
