@@ -6,5 +6,6 @@ export interface Config {
   }
   news: {
     defaultFilter: string
+    readonly relevanceThreshold: number
   }
 }

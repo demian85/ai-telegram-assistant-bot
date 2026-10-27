@@ -55,9 +55,11 @@ The bot registers these Telegram commands:
 /interval [seconds]    Show or set the news cadence
 /newsfilter [text]     Describe preferences, or show the active filter
 /newsfilter reset      Restore the configured default news filter
+/relevance [0-100]     Show or set this chat's relevance threshold
+/relevance reset       Use the configured default relevance threshold
 ```
 
-In private chats, subscription commands are self-service. In allowed group chats, `/subscribe`, `/unsubscribe`, `/interval`, and `/newsfilter` require admin access, including viewing preferences. No commands run in unlisted groups.
+In private chats, subscription commands are self-service. In allowed group chats, `/subscribe`, `/unsubscribe`, `/interval`, `/newsfilter`, and `/relevance` require admin access, including viewing settings. No commands run in unlisted groups.
 
 ### Configure your news filter
 
@@ -78,6 +80,10 @@ The `newsPreferences` model extracts structured interests, exclusions, and title
 Your original description is always supplied to the relevance model and takes precedence over the compiled instruction. This preserves exclusions and title rules even if the generator omits a detail. The structured criteria and instruction are reused until you change or reset them. The generator is not called for each article. Preferences are stored per chat in Redis without an application expiry; Redis persistence/backups are still needed to survive data loss. Group preferences are shared by that group.
 
 Articles must substantively match at least one interest, avoid explicit exclusions, and meet the relevance score threshold. A high score cannot override an exclusion. By default, an exclusion concerns the article's main subject; an incidental mention does not disqualify it. Say explicitly if you want a stricter rule.
+
+Use `/relevance` to view this chat's effective coverage threshold, `/relevance 80` to require direct substantive coverage, or `/relevance reset` to inherit `news.relevanceThreshold` again. Values from 0 to 100, including decimals, are accepted. A starting point is 70 for balanced selection, 80 for stricter selection, or 60 to include partial substantive coverage. These are rubric-based guidelines, not calibrated accuracy guarantees. Higher values can reduce delivery volume considerably. Eligibility, exclusions, title rules, and `news.decisionConfidenceThreshold` still apply even at 0.
+
+The override is stored per raw chat ID in Redis without an application expiry and applies to scheduled delivery, `/news`, `/summary`, and the news tool. It persists across preference replacement and `/newsfilter reset`; `/relevance reset` clears only the threshold override. Threshold changes preserve subscriptions, cadence, and delivery history, invalidate that chat's decision fingerprint, and discard results scored against an outdated setting.
 
 ## Tech stack
 

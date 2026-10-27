@@ -21,6 +21,7 @@ Offline Vitest behavior coverage with injected service doubles and a real agent/
 | Shared doubles and update builders                                       | `test-helpers.ts`                                       |
 | Preference persistence, model schema, exclusion gates, cache revisions   | `news-filter.test.ts`, `news-filter-helpers.ts`         |
 | Shared scheduling/query/tool filtering and stale results                 | `news-filter-paths.test.ts`                             |
+| Per-chat coverage persistence, isolation, cached gates, and fallback     | `news-relevance-threshold.test.ts`                      |
 | Retry ceilings, persisted cooldowns, concurrent evaluation sharing       | `news-filter-retries.test.ts`                           |
 | Bounded delivery evaluations, query limits and cache reuse               | `news-request-limits.test.ts`                           |
 | Expired article index cleanup, batching and re-storage races             | `news-store.test.ts`                                    |

@@ -47,6 +47,18 @@ The six coverage rubric positions describe unrelated content (0), very weak conn
 
 For example, position 3.5 becomes coverage score 70. With `relevanceThreshold: 80`, the article is rejected even if it is eligible with confidence 1. The application compares the unrounded `position * 20` against the threshold and retains that value in cached decisions; it rounds only the score displayed for a selected article. A score of 69.8 therefore fails a threshold of 70. A high coverage score cannot override ineligibility or unresolved eligibility confidence. Coverage is not a probability of relevance, and confidence is not a relevance score.
 
+Start with confidence 0.8 and coverage 70 for balanced selection. Use coverage 80 when direct substantive coverage matters more than volume, or 60 to allow partial substantive coverage. These recommendations follow the rubric; they are not a measured accuracy guarantee for every feed or preference. Raising confidence does not demand stronger coverage; it withholds more uncertain eligibility judgments.
+
+### Per-chat coverage threshold
+
+- `/relevance` displays the effective threshold and whether it is inherited or custom.
+- `/relevance 80` saves a threshold for this chat. Any number from 0 to 100, including decimals, is accepted.
+- `/relevance reset` removes the override and follows the current `news.relevanceThreshold`.
+
+Private users manage their own setting. In allowlisted groups, viewing and changing it require an administrator or creator. The confidence threshold remains global. A threshold override does not bypass eligibility, exclusions, title rules, or confidence checks, even when set to 0.
+
+Overrides use `news:relevance-threshold:<rawChatId>` in Redis without an application expiry, independently of preference and subscription records. Changing or resetting preferences preserves the override. Changing a threshold preserves preferences, subscription status, cadence, and delivered-article records. It applies to scheduled delivery, `/news`, `/summary`, and `get_recent_news`. The resolved filter revision includes the override, so changed settings use a different decision/retry fingerprint and in-flight results under old settings are withheld. Returning to a previous setting may reuse its still-valid cached decisions.
+
 ## Selection and caching
 
 Each article/chat pair sends the original preferences once, plus the RSS title (up to 1000 characters) and description (up to 3000 characters), in one request. Both questions evaluate the title and description together; an informative description can establish relevance when the title alone cannot. Missing descriptions remain absent and the model must not invent evidence. Full article bodies and compiled instructions are omitted to reduce input tokens.

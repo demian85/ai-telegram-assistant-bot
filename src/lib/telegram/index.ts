@@ -36,6 +36,7 @@ import {
   type NewsPreferenceGenerator,
 } from '@lib/news/preferences.js'
 import { NewsFilterCommand } from './news-filter-command.js'
+import { NewsRelevanceCommand } from './news-relevance-command.js'
 import {
   escapeHtml,
   createHtmlLink,
@@ -116,6 +117,7 @@ export class Bot {
   private readonly chatSubscriptionStore: ChatSubscriptionStore
   private readonly newsQueryService: NewsQueryService | null = null
   private readonly newsFilterCommand: NewsFilterCommand
+  private readonly newsRelevanceCommand: NewsRelevanceCommand
 
   private readonly registeredCommands = [
     {
@@ -157,6 +159,10 @@ export class Bot {
     {
       command: 'newsfilter',
       description: 'Describe, view, or reset news preferences',
+    },
+    {
+      command: 'relevance',
+      description: 'Show, set, or reset news relevance threshold',
     },
     {
       command: 'summary',
@@ -218,10 +224,16 @@ export class Bot {
       dependencies.chatSubscriptionStore ??
       new ChatSubscriptionStore(redisClient)
     this.newsQueryService = dependencies.newsQueryService ?? null
-    this.newsFilterCommand = new NewsFilterCommand(
+    const newsPreferences =
       dependencies.newsPreferences ??
-        new NewsPreferenceStore(redisClient, config.news.defaultFilter),
+      new NewsPreferenceStore(redisClient, config.news.defaultFilter)
+    this.newsFilterCommand = new NewsFilterCommand(
+      newsPreferences,
       dependencies.newsPreferenceGenerator
+    )
+    this.newsRelevanceCommand = new NewsRelevanceCommand(
+      newsPreferences,
+      config.news.relevanceThreshold
     )
 
     this.bot.use(async (ctx, next) => {
@@ -665,6 +677,14 @@ export class Bot {
           )
         }
       },
+      relevance: async (ctx) => {
+        if (!(await this.ensureSubscriptionCommandAccess(ctx, 'relevance')))
+          return
+        await this.newsRelevanceCommand.handle(ctx, {
+          chatId: this.getSubscriptionChatId(ctx),
+          args: this.getCommandArguments(ctx),
+        })
+      },
       newsfilter: async (ctx) => {
         if (!(await this.ensureSubscriptionCommandAccess(ctx, 'newsfilter')))
           return
@@ -1002,8 +1022,8 @@ export class Bot {
     )
     const adminScopeNote =
       ctx.chatType === 'group'
-        ? 'In groups, /subscribe, /unsubscribe, /interval, and /newsfilter require an admin.'
-        : 'In private chats, /subscribe, /unsubscribe, /interval, and /newsfilter are self-service.'
+        ? 'In groups, /subscribe, /unsubscribe, /interval, /newsfilter, and /relevance require an admin.'
+        : 'In private chats, /subscribe, /unsubscribe, /interval, /newsfilter, and /relevance are self-service.'
 
     return [
       'Operational commands:',
@@ -1018,6 +1038,7 @@ export class Bot {
       '/unsubscribe - disable relevant news delivery for this chat',
       `/interval [seconds] - show or set the news cadence (${minNewsIntervalSeconds}-${maxNewsIntervalSeconds})`,
       '/newsfilter [description|reset] - describe, view, or reset news preferences',
+      '/relevance [0-100|reset] - show, set, or reset the news coverage threshold',
       '',
       this.getIngressSummary(ctx),
       adminScopeNote,
@@ -1063,7 +1084,12 @@ export class Bot {
 
   private async ensureSubscriptionCommandAccess(
     ctx: TelegramContext,
-    command: 'subscribe' | 'unsubscribe' | 'interval' | 'newsfilter'
+    command:
+      | 'subscribe'
+      | 'unsubscribe'
+      | 'interval'
+      | 'newsfilter'
+      | 'relevance'
   ): Promise<boolean> {
     if (ctx.chatType === 'private') {
       return true

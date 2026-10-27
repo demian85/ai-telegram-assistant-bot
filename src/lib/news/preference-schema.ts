@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 export const preferenceDescriptionSchema = z.string().trim().min(1).max(3000)
+export const relevanceThresholdSchema = z.number().min(0).max(100)
 const criterionSchema = z.object({
   rule: z.string().trim().min(3).max(300),
   sourceText: z.string().trim().min(1).max(3000),
@@ -59,6 +60,7 @@ export const newsPreferenceSchema = legacyPreferenceSchema
 export type NewsPreference = z.infer<typeof newsPreferenceSchema>
 export type LegacyNewsPreference = z.infer<typeof legacyPreferenceSchema>
 export type NewsFilter = {
+  readonly relevanceThreshold?: number
   readonly description: string
   readonly instruction: string
   readonly revision: string

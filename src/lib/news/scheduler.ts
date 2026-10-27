@@ -438,7 +438,8 @@ export class NewsScheduler {
             isRelevant,
             eligible: result.eligible,
             filterRevision: filter.revision,
-            threshold: this.config.relevanceThreshold,
+            threshold:
+              filter.relevanceThreshold ?? this.config.relevanceThreshold,
           },
           'Evaluated article for delivery'
         )
