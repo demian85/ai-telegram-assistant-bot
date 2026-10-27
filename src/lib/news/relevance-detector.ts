@@ -47,17 +47,19 @@ export class RelevanceDetector {
       .digest('hex')
   }
 
-  result(decision: RelevanceDecision): RelevanceResult {
+  result(
+    decision: RelevanceDecision,
+    relevanceThreshold = this.config.relevanceThreshold
+  ): RelevanceResult {
     return {
       ...decision,
-      isRelevant:
-        decision.eligible && decision.score >= this.config.relevanceThreshold,
+      isRelevant: decision.eligible && decision.score >= relevanceThreshold,
     }
   }
 
   async detectRelevance(
     item: NewsItem,
-    filter: Pick<NewsFilter, 'description'>,
+    filter: Pick<NewsFilter, 'description' | 'relevanceThreshold'>,
     signal?: AbortSignal
   ): Promise<RelevanceResult | null> {
     signal?.throwIfAborted()
@@ -105,7 +107,7 @@ export class RelevanceDetector {
         },
         'Evaluated news decision'
       )
-      return this.result(decision)
+      return this.result(decision, filter.relevanceThreshold)
     } catch (error) {
       signal?.throwIfAborted()
       if (error instanceof DecisionRateLimitError) throw error

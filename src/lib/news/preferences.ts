@@ -9,6 +9,7 @@ import {
   newsPreferenceSchema,
   legacyPreferenceSchema,
   renderCriteria,
+  relevanceThresholdSchema,
   type NewsPreference,
   type NewsFilter,
 } from './preference-schema.js'
@@ -91,6 +92,37 @@ export class NewsPreferenceStore {
   }
 
   async resolve(chatId: string): Promise<NewsFilter> {
+    const [filter, rawThreshold] = await Promise.all([
+      this.resolvePreferences(chatId),
+      this.redis.get(`news:relevance-threshold:${chatId}`),
+    ])
+    if (rawThreshold === null) return filter
+    const relevanceThreshold = relevanceThresholdSchema.parse(
+      JSON.parse(rawThreshold)
+    )
+    return {
+      ...filter,
+      relevanceThreshold,
+      revision: createHash('sha256')
+        .update(JSON.stringify([filter.revision, relevanceThreshold]))
+        .digest('hex'),
+    }
+  }
+
+  async setRelevanceThreshold(
+    chatId: string,
+    threshold: number | null
+  ): Promise<void> {
+    const key = `news:relevance-threshold:${chatId}`
+    if (threshold === null) {
+      await this.redis.del(key)
+      return
+    }
+    const parsed = relevanceThresholdSchema.parse(threshold)
+    await this.redis.set(key, JSON.stringify(parsed))
+  }
+
+  private async resolvePreferences(chatId: string): Promise<NewsFilter> {
     const key = `news:preferences:${chatId}`
     const raw = await this.redis.get(key)
     if (raw !== null) {
@@ -136,7 +168,7 @@ export class NewsPreferenceStore {
         model: 'legacy-topic-migration',
       })
       await this.redis.set(key, JSON.stringify(migrated), 'NX')
-      return this.resolve(chatId)
+      return this.resolvePreferences(chatId)
     }
     return this.defaultSettings('default')
   }

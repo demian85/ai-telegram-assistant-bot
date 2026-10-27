@@ -111,7 +111,8 @@ export class ChatNewsFilter {
         'Reused cached news decision'
       )
       return this.detector.result(
-        relevanceDecisionSchema.parse(JSON.parse(cached))
+        relevanceDecisionSchema.parse(JSON.parse(cached)),
+        context.filter.relevanceThreshold
       )
     }
     const retryKey = `${key}:retry`

@@ -56,7 +56,7 @@ test.each(['private', 'group'] as const)(
           whitelistedUsers: [],
           allowedGroupIds: ['-100'],
         },
-        news: { defaultFilter: 'AI' },
+        news: { defaultFilter: 'AI', relevanceThreshold: 70 },
       },
       {
         agentModel: {} as never,

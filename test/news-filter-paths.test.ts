@@ -43,13 +43,15 @@ test('queries score beyond the first ten candidates using article descriptions',
   expect(result.map((item) => item.id)).toEqual(['item-10'])
 })
 
-test('scheduled delivery, queries, summary, and news tool share saved preferences', async () => {
+test('scheduled delivery, queries, summary, and news tool share saved preferences and threshold', async () => {
   const respond = vi.fn((request: DecisionRequest) => ({
     ...acceptedDecision,
+    score: 75,
     eligible: input(request).article.title !== 'excluded',
   }))
   const harness = filterHarness(respond)
   await harness.preferences.save('100', preference('custom-filter'))
+  await harness.preferences.setRelevanceThreshold('100', 70)
   const store = new NewsStore(harness.redis.asRedis())
   await store.storeItem(article('excluded'))
   await store.storeItem(article('allowed'))
@@ -133,39 +135,65 @@ test('news tool uses trusted invocation context and fails closed when absent', a
   expect(missing).not.toContain('https://example.test/private-news')
 })
 
-test('delivery discards a result if preferences change while the model is scoring', async () => {
+test.each(['preferences', 'threshold'] as const)(
+  'delivery discards a result if %s change while the model is scoring',
+  async (change) => {
+    const harness = filterHarness()
+    await new NewsStore(harness.redis.asRedis()).storeItem(article())
+    await new ChatSubscriptionStore(harness.redis.asRedis()).subscribe(
+      'a',
+      new Date(Date.now() - 60_000)
+    )
+    vi.spyOn(harness.detector, 'detectRelevance').mockImplementation(
+      async () => {
+        if (change === 'preferences') {
+          await harness.preferences.save('a', preference('updated-filter'))
+        } else {
+          await harness.preferences.setRelevanceThreshold('a', 100)
+        }
+        return { ...acceptedDecision, isRelevant: true }
+      }
+    )
+    const scheduler = new NewsScheduler(
+      {
+        redis: harness.redis.asRedis(),
+        model: harness.model,
+        newsConfig: {
+          feeds: [],
+          defaultFilter: 'news interests',
+          relevanceThreshold: 80,
+          pollIntervalMinutes: 5,
+          deliveryCheckIntervalSeconds: 60,
+          maxArticlesPerPoll: 10,
+        },
+      },
+      {
+        filter: harness.filter,
+        queue: createNoopQueue(),
+        worker: createNoopWorker(),
+      }
+    )
+    const send = vi.fn(async () => {})
+
+    await scheduler['deliverRelevantArticles'](send)
+
+    expect(send).not.toHaveBeenCalled()
+  }
+)
+
+test('queries discard results if the threshold changes while scoring', async () => {
   const harness = filterHarness()
   await new NewsStore(harness.redis.asRedis()).storeItem(article())
-  await new ChatSubscriptionStore(harness.redis.asRedis()).subscribe(
-    'a',
-    new Date(Date.now() - 60_000)
-  )
   vi.spyOn(harness.detector, 'detectRelevance').mockImplementation(async () => {
-    await harness.preferences.save('a', preference('updated-filter'))
+    await harness.preferences.setRelevanceThreshold('a', 100)
     return { ...acceptedDecision, isRelevant: true }
   })
-  const scheduler = new NewsScheduler(
-    {
-      redis: harness.redis.asRedis(),
-      model: harness.model,
-      newsConfig: {
-        feeds: [],
-        defaultFilter: 'news interests',
-        relevanceThreshold: 80,
-        pollIntervalMinutes: 5,
-        deliveryCheckIntervalSeconds: 60,
-        maxArticlesPerPoll: 10,
-      },
-    },
-    {
-      filter: harness.filter,
-      queue: createNoopQueue(),
-      worker: createNoopWorker(),
-    }
-  )
-  const send = vi.fn(async () => {})
+  const query = new NewsQueryService({
+    redis: harness.redis.asRedis(),
+    filter: harness.filter,
+  })
 
-  await scheduler['deliverRelevantArticles'](send)
+  const result = await query.getRecentNewsForChat(10, 'a')
 
-  expect(send).not.toHaveBeenCalled()
+  expect(result).toEqual([])
 })

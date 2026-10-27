@@ -122,6 +122,7 @@ function createBotHarness(
     },
     news: {
       defaultFilter: 'AI and technology',
+      relevanceThreshold: 70,
     },
   }
 
@@ -432,6 +433,135 @@ test('newsfilter saves and displays preferences without invoking the chat agent'
   ).toBe(true)
   expect(agentService.invocations).toEqual([])
   expect(await subscriptions.getSubscription('100')).toBeNull()
+})
+
+test.each([0, 65.5, 100])(
+  'relevance saves a private chat threshold of %s',
+  async (threshold) => {
+    const { telegraf, preferences, subscriptions, agentService } =
+      createBotHarness()
+
+    const ctx = await telegraf.dispatch(
+      createTextUpdate({
+        chatId: 100,
+        chatType: 'private',
+        username: 'alice',
+        text: `/relevance ${threshold}`,
+      })
+    )
+
+    expect((await preferences.resolve('100')).relevanceThreshold).toBe(
+      threshold
+    )
+    expect(
+      (await preferences.resolve('200')).relevanceThreshold
+    ).toBeUndefined()
+    expect(
+      ctx.replyLog.some((reply) => reply.text.includes(`${threshold}/100`))
+    ).toBe(true)
+    expect(agentService.invocations).toEqual([])
+    expect(await subscriptions.getSubscription('100')).toBeNull()
+  }
+)
+
+test.each(['-1', '101', 'NaN', 'Infinity', '0x50', '80 extra', '75%'])(
+  'relevance rejects invalid input %s',
+  async (args) => {
+    const { telegraf, preferences } = createBotHarness()
+    await preferences.setRelevanceThreshold('100', 90)
+
+    await telegraf.dispatch(
+      createTextUpdate({
+        chatId: 100,
+        chatType: 'private',
+        username: 'alice',
+        text: `/relevance ${args}`,
+      })
+    )
+
+    expect((await preferences.resolve('100')).relevanceThreshold).toBe(90)
+  }
+)
+
+test('relevance reset displays the configured default and preserves other settings', async () => {
+  const { telegraf, preferences, subscriptions } = createBotHarness()
+  const custom = preference()
+  await preferences.save('100', custom)
+  await preferences.setRelevanceThreshold('100', 85)
+  const subscription = await subscriptions.subscribe('100')
+
+  const ctx = await telegraf.dispatch(
+    createTextUpdate({
+      chatId: 100,
+      chatType: 'private',
+      username: 'alice',
+      text: '/relevance reset',
+    })
+  )
+
+  expect((await preferences.resolve('100')).relevanceThreshold).toBeUndefined()
+  expect((await preferences.resolve('100')).preference).toEqual(custom)
+  expect(await subscriptions.getSubscription('100')).toEqual(subscription)
+  expect(ctx.replyLog.some((reply) => reply.text.includes('70/100'))).toBe(true)
+})
+
+test.each(['member', 'administrator', 'creator', 'lookup-failure'])(
+  'relevance enforces group access for %s',
+  async (status) => {
+    const { telegraf, preferences } = createBotHarness()
+    telegraf.telegram.getChatMember = async () => {
+      if (status === 'lookup-failure') throw new Error('Telegram unavailable')
+      return { status }
+    }
+
+    await telegraf.dispatch(
+      createTextUpdate({
+        chatId: -100,
+        chatType: 'supergroup',
+        username: 'alice',
+        text: '/relevance@bot 85',
+      })
+    )
+
+    expect((await preferences.resolve('-100')).relevanceThreshold).toBe(
+      status === 'administrator' || status === 'creator' ? 85 : undefined
+    )
+  }
+)
+
+test('relevance ignores commands from unlisted groups', async () => {
+  const { telegraf, preferences } = createBotHarness({ allowedGroupIds: [] })
+  const lookup = vi.spyOn(telegraf.telegram, 'getChatMember')
+
+  const ctx = await telegraf.dispatch(
+    createTextUpdate({
+      chatId: -100,
+      chatType: 'group',
+      username: 'alice',
+      text: '/relevance@bot 60',
+    })
+  )
+
+  expect((await preferences.resolve('-100')).relevanceThreshold).toBeUndefined()
+  expect(lookup).not.toHaveBeenCalled()
+  expect(ctx.replyLog).toEqual([])
+})
+
+test('relevance displays the current setting without changing it', async () => {
+  const { telegraf, preferences } = createBotHarness()
+  await preferences.setRelevanceThreshold('100', 82)
+
+  const ctx = await telegraf.dispatch(
+    createTextUpdate({
+      chatId: 100,
+      chatType: 'private',
+      username: 'alice',
+      text: '/relevance',
+    })
+  )
+
+  expect((await preferences.resolve('100')).relevanceThreshold).toBe(82)
+  expect(ctx.replyLog.some((reply) => reply.text.includes('82/100'))).toBe(true)
 })
 
 test('does not advertise or execute the removed topics command', async () => {
