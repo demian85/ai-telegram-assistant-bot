@@ -11,7 +11,7 @@
     ],
     "pollIntervalMinutes": 15,
     "deliveryCheckIntervalSeconds": 300,
-    "relevanceThreshold": 80,
+    "relevanceThreshold": 70,
     "decisionModel": "jev-latest",
     "decisionConfidenceThreshold": 0.8,
     "maxArticlesPerPoll": 5,
