@@ -11,6 +11,7 @@ import type { Redis } from 'ioredis'
 import type { StructuredTool } from '@langchain/core/tools'
 import logger from '@lib/logger.js'
 import { AgentService } from '@lib/agent/index.js'
+import type { AgentLiveInvocationInput } from '@lib/agent/content.js'
 import type { ChatSystemPrompts } from '@lib/config/types.js'
 import {
   ChatSubscriptionStore,
@@ -60,9 +61,8 @@ export interface BotNewsArticle {
   relevanceScore: number
 }
 
-interface NormalizedTelegramIngress {
+interface NormalizedTelegramIngress extends AgentLiveInvocationInput {
   text: string
-  imageUrl?: string
   shouldInvoke: boolean
 }
 
@@ -965,6 +965,36 @@ export class Bot {
     return ctx.chatType === 'private' || ctx.isMention || isReplyToBot
   }
 
+  private getReplyContext(
+    ctx: TelegramContext
+  ): AgentLiveInvocationInput['replyContext'] {
+    const original =
+      ctx.message && 'reply_to_message' in ctx.message
+        ? ctx.message.reply_to_message
+        : undefined
+    if (!original) return undefined
+
+    const author =
+      original.sender_chat && 'title' in original.sender_chat
+        ? original.sender_chat.title
+        : original.from
+          ? [
+              original.from.first_name,
+              original.from.last_name,
+              original.from.username ? `(@${original.from.username})` : '',
+            ]
+              .filter(Boolean)
+              .join(' ')
+          : 'Unknown author'
+    const text =
+      'text' in original
+        ? original.text
+        : 'caption' in original
+          ? original.caption
+          : undefined
+    return { author, text: text || '[non-text message]' }
+  }
+
   private async normalizeIncomingMessage(
     ctx: TelegramContext
   ): Promise<NormalizedTelegramIngress | null> {
@@ -974,12 +1004,18 @@ export class Bot {
 
     const text = ctx.parsedMessageText?.trim() ?? ''
     const shouldInvoke = this.shouldInvokeAgent(ctx)
+    const replyContext = shouldInvoke ? this.getReplyContext(ctx) : undefined
+    const input: NormalizedTelegramIngress = {
+      text,
+      shouldInvoke,
+      ...(replyContext ? { replyContext } : {}),
+    }
 
     if ('photo' in ctx.message && Array.isArray(ctx.message.photo)) {
       const largestPhoto = ctx.message.photo[ctx.message.photo.length - 1]
 
       if (!largestPhoto) {
-        return text ? { text, shouldInvoke } : null
+        return text || replyContext ? input : null
       }
 
       const imageUrl = (
@@ -987,20 +1023,16 @@ export class Bot {
       ).toString()
 
       return {
-        text,
+        ...input,
         imageUrl,
-        shouldInvoke,
       }
     }
 
-    if (!text) {
+    if (!text && !replyContext) {
       return null
     }
 
-    return {
-      text,
-      shouldInvoke,
-    }
+    return input
   }
 
   private async buildStartMessage(ctx: TelegramContext): Promise<string> {

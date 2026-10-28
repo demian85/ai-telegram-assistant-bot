@@ -5,6 +5,7 @@ import { AgentService } from '../src/lib/agent/index.js'
 import { SummaryStore } from '../src/lib/memory/index.js'
 import { renderPromptTemplate } from '../src/lib/config/prompt-template.js'
 import { InMemoryRedis } from './test-helpers.js'
+import { buildLiveUserContent } from '../src/lib/agent/content.js'
 
 const requestSchema = z.object({
   messages: z.array(z.object({ role: z.string(), content: z.string() })),
@@ -43,6 +44,59 @@ function recordingModel() {
 }
 
 afterEach(() => vi.restoreAllMocks())
+
+test.each([false, true])(
+  'sends reply context through the real agent and retains it in memory with vision=%s',
+  async (supportsVision) => {
+    // Given an original message not present in stored conversation history.
+    const { model, requests } = recordingModel()
+    const agent = new AgentService({
+      redis: new InMemoryRedis().asRedis(),
+      agentModel: model,
+      summarizerModel: model,
+      supportsVision,
+      tools: [],
+      systemPrompts: { private: 'private-test', group: 'group-test' },
+      summarizerSystemPrompt: '{{period}}',
+    })
+    await agent.initialize()
+    const input = {
+      text: 'Bob: what changed?',
+      replyContext: {
+        author: 'Carlos Garcia (@carlos)',
+        text: 'The meeting moved to Friday.\nBring the report.',
+      },
+    }
+
+    // When the reply reaches the real model adapter.
+    await agent.invokeLive('group:-100', input, 'group')
+
+    // Then the provider and saved user message both contain the original data.
+    const userMessage = requests[0]?.messages.at(-1)
+    expect(userMessage?.role).toBe('user')
+    expect(userMessage?.content).toContain(JSON.stringify(input.replyContext))
+    expect(userMessage?.content).toContain(input.text)
+    const history = await agent.getHistory('group:-100')
+    expect(history.find((message) => message.role === 'user')?.content).toBe(
+      userMessage?.content
+    )
+    const photoContent = buildLiveUserContent(
+      { ...input, imageUrl: 'https://images.test/reply.png' },
+      supportsVision
+    )
+    if (supportsVision) {
+      expect(photoContent).toEqual([
+        { type: 'text', text: userMessage?.content },
+        {
+          type: 'image_url',
+          image_url: { url: 'https://images.test/reply.png' },
+        },
+      ])
+    } else {
+      expect(photoContent).toContain(JSON.stringify(input.replyContext))
+    }
+  }
+)
 
 test.each(['private', 'group'] as const)(
   'sends the configured %s prompt through the real agent graph',
