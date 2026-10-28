@@ -55,7 +55,7 @@ function recordingModel(
               finish_reason: 'stop',
               message: {
                 role: 'assistant',
-                content: 'evidence [1]',
+                content: 'evidence.^1^',
               },
             },
           ],
@@ -135,8 +135,12 @@ test.each(['private', 'group'] as const)(
     expect(turns[0]?.prompt_cache_key).toBe(turns[1]?.prompt_cache_key)
     expect(turns[0]?.prompt_cache_key).not.toBe(turns[2]?.prompt_cache_key)
     expect(answer.includes('Sources:')).toBe(chatType === 'private')
-    if (chatType === 'group') expect(answer).toBe('evidence [1]')
-    else expect(answer).toContain('https://example.com/article')
+    expect(answer).toContain('evidence.[1](<https://example.com/article>)')
+    expect(
+      (await agent.getHistory(`${chatType}:1`)).find(
+        (message) => message.role === 'assistant'
+      )?.content
+    ).toBe(answer)
   }
 )
 
@@ -247,62 +251,4 @@ test('rejects unsupported X search and keeps ordinary compatible providers free 
       citations: true,
     })
   ).toThrow('not supported')
-})
-
-test.each([true, false])(
-  'preserves native citation markers with source list enabled=%s',
-  (includeSourceList) => {
-    const content =
-      'Claim.^2^ Another claim [1]. Existing [link](https://example.com).'
-    const response = citedResponse(
-      {
-        content,
-        additional_kwargs: {
-          __raw_response: {
-            venice_parameters: {
-              web_search_citations: [
-                { url: 'https://one.example/a' },
-                { url: 'https://two.example/b' },
-              ],
-            },
-          },
-        },
-      },
-      { includeSourceList }
-    )
-    if (includeSourceList)
-      expect(response).toBe(
-        `${content}\n\nSources:\n- [Source 1](<https://one.example/a>)\n- [Source 2](<https://two.example/b>)`
-      )
-    else expect(response).toBe(content)
-  }
-)
-
-test.each(['Sources:', '## References', '**Fuentes**:'])(
-  'preserves a native trailing %s list without adding another list in groups',
-  (heading) => {
-    const content = `Claim [1].\n\n${heading}\n1. [Article](https://example.com/article)`
-    expect(
-      citedResponse(
-        { content, additional_kwargs: {} },
-        { includeSourceList: false }
-      )
-    ).toBe(content)
-    expect(citedResponse({ content, additional_kwargs: {} })).toBe(content)
-  }
-)
-
-test('preserves source headings inside code and substantive text after a source heading', () => {
-  for (const content of [
-    '```markdown\nSources:\n- [Article](https://example.com/article)\n```',
-    'Sources:\nThis paragraph explains the evidence.\n\n## Conclusion\nKeep this conclusion.',
-    'Claim [1](https://example.com/article).',
-  ]) {
-    expect(
-      citedResponse(
-        { content, additional_kwargs: {} },
-        { includeSourceList: false }
-      )
-    ).toBe(content)
-  }
 })

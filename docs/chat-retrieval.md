@@ -58,9 +58,12 @@ summaries can reduce reusable prefixes. Prompt caching remains provider-managed;
 there is no padding or artificial warming in normal bot operation.
 `llm.usage` logs per-call token/cache metadata, including agent tool-loop calls.
 
-Native model text, citation markers, links, and any model-written source list
-are preserved unchanged. Private replies may append a Sources list from provider
-metadata; group replies skip that addition.
+Provider caret citations such as `^1^` and `^2,4,7^` become inline Markdown links
+to the corresponding HTTP(S) sources in both private and group replies. Source
+numbers retain their original metadata positions even when entries are invalid
+or URLs are duplicated. Unknown markers, code, existing links, and model-written
+source lists are preserved. Private replies may append a Sources list from
+provider metadata; group replies skip that addition.
 
 ## Verification
 
