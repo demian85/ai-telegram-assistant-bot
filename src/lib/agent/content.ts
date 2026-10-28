@@ -3,6 +3,10 @@ import type { MessageContent } from '@langchain/core/messages'
 export interface AgentLiveInvocationInput {
   text?: string
   imageUrl?: string
+  readonly replyContext?: {
+    readonly author: string
+    readonly text: string
+  }
 }
 
 interface TextContentPart {
@@ -21,10 +25,17 @@ function isTextContentPart(part: unknown): part is TextContentPart {
   )
 }
 
+function buildUserText(input: AgentLiveInvocationInput): string {
+  const normalizedText = input.text?.trim() ?? ''
+  return input.replyContext
+    ? `Replied-to message (quoted context):\n${JSON.stringify(input.replyContext)}\n\n${normalizedText}`.trim()
+    : normalizedText
+}
+
 export function buildPersistedTextShadow(
   input: AgentLiveInvocationInput
 ): string {
-  const normalizedText = input.text?.trim() ?? ''
+  const normalizedText = buildUserText(input)
 
   if (!input.imageUrl) {
     return normalizedText
@@ -47,10 +58,11 @@ export function buildLiveUserContent(
 
   const content: MessageContent = []
 
-  if (input.text?.trim()) {
+  const text = buildUserText(input)
+  if (text) {
     content.push({
       type: 'text',
-      text: input.text.trim(),
+      text,
     })
   }
 

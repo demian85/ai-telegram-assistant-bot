@@ -18,6 +18,7 @@ Builds live LangChain invocations, durable text history, and tools with trusted 
 - The model receives a system prompt, any daily/weekly/monthly summary context, recent raw messages, and the current user content.
 - `invokeLive(chatId, input, chatType)` and `invoke(chatId, message, chatType)` require the trusted normalized `private`/`group` type. It selects the configured `systemPrompts` entry and renders `{{chatType}}`; no fallback prompt exists. The required `summarizerSystemPrompt` is forwarded to memory generation.
 - With vision enabled, the live content may contain Telegram's image URL. Redis stores `[image attached]` and optional caption text, never the image URL. Without vision, the live user content is that text shadow too.
+- Optional `replyContext` contains the original author's identity and text/caption. Content builders include it as quoted user context in both live model input and the persisted text shadow, including when the current input has an image.
 - `persistUserMessage()` records group messages that do not invoke the agent. Keep that path distinct from `invokeLive()` so a message is not stored twice.
 
 ## Tools

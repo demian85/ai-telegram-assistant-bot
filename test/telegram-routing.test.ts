@@ -744,6 +744,53 @@ const previousBotMessage = {
 } as const
 
 test.each(['group', 'supergroup'] as const)(
+  'includes the original message and author when mentioning the bot in a %s reply',
+  async (chatType) => {
+    // Given an original message that is absent from the bot's memory.
+    const { telegraf, agentService } = createBotHarness()
+    const original = {
+      ...previousBotMessage,
+      from: {
+        id: 7,
+        is_bot: false,
+        first_name: 'Carlos',
+        last_name: 'Garcia',
+        username: 'carlos',
+      },
+      text: 'The meeting moved to Friday.\nBring the report.',
+    }
+
+    // When another member replies and mentions the bot.
+    await telegraf.dispatch(
+      createTextUpdate({
+        chatId: -100,
+        chatType,
+        username: 'bob',
+        firstName: 'Bob',
+        text: '@bot what changed?',
+        entities: [{ type: 'mention', offset: 0, length: 4 }],
+        replyToMessage: original,
+      })
+    )
+
+    // Then the agent receives both authors and the original unmodified text.
+    expect(agentService.invocations).toEqual([
+      {
+        chatId: 'group:-100',
+        input: {
+          text: 'Bob: what changed?',
+          shouldInvoke: true,
+          replyContext: {
+            author: 'Carlos Garcia (@carlos)',
+            text: original.text,
+          },
+        },
+      },
+    ])
+  }
+)
+
+test.each(['group', 'supergroup'] as const)(
   'answers an unmentioned reply to its own message in a listed %s',
   async (chatType) => {
     // Given a listed group with a previous message from this bot.
@@ -765,12 +812,57 @@ test.each(['group', 'supergroup'] as const)(
     expect(agentService.invocations).toEqual([
       {
         chatId: 'group:-100',
-        input: { text: 'Bob: Can you explain more?', shouldInvoke: true },
+        input: {
+          text: 'Bob: Can you explain more?',
+          shouldInvoke: true,
+          replyContext: {
+            author: 'Bot (@previous_bot_name)',
+            text: previousBotMessage.text,
+          },
+        },
       },
     ])
     expect(ctx.chatActions).toEqual(['typing'])
     expect(telegraf.sentRichMessages[0]?.content).toEqual({
       markdown: 'agent reply',
+    })
+  }
+)
+
+test.each([
+  { text: '@bot', original: { text: 'Keep the launch on Monday.' } },
+  { text: '@bot explain', original: { caption: 'Launch schedule diagram' } },
+  { text: '@bot explain', original: {} },
+])(
+  'includes reply context for $text with $original',
+  async ({ text, original }) => {
+    // Given a replied-to message from a member without a username.
+    const { telegraf, agentService } = createBotHarness()
+    const replyToMessage = {
+      message_id: 99,
+      date: 1,
+      chat: previousBotMessage.chat,
+      from: { id: 7, is_bot: false, first_name: 'Carlos' },
+      ...original,
+    }
+
+    // When a member mentions the bot in a reply, possibly without other text.
+    await telegraf.dispatch(
+      createTextUpdate({
+        chatId: -100,
+        chatType: 'group',
+        username: 'bob',
+        text,
+        entities: [{ type: 'mention', offset: 0, length: 4 }],
+        replyToMessage,
+      })
+    )
+
+    // Then reply content is available even without stored history or a caption.
+    expect(agentService.invocations).toHaveLength(1)
+    expect(agentService.invocations[0]?.input.replyContext).toEqual({
+      author: 'Carlos',
+      text: original.text ?? original.caption ?? '[non-text message]',
     })
   }
 )
@@ -803,6 +895,10 @@ test.each(['group', 'supergroup'] as const)(
           text: 'Alice: What about this?',
           imageUrl: 'https://files.test/reply-photo',
           shouldInvoke: true,
+          replyContext: {
+            author: 'Bot (@previous_bot_name)',
+            text: previousBotMessage.text,
+          },
         },
       },
     ])

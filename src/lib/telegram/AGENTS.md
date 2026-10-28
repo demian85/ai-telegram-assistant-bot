@@ -34,6 +34,7 @@ Telegraf middleware routes authorized commands and ordinary text/photos into sco
 - Telegram privacy mode determines which group updates the bot receives; there is no application privacy-mode toggle.
 - Strip explicit bot mentions from model input and preserve existing sender attribution for parsed group text and captions.
 - Command handlers have their own routing; ordinary message mention gating happens in `normalizeIncomingMessage`.
+- Invoked replies include the original `reply_to_message` author and text/caption as quoted agent context, including mention-only replies. Prefer `sender_chat.title` for messages sent on behalf of a chat, otherwise the sender's name and username. Non-text originals receive a placeholder; quoted media is not downloaded. Passive replies do not trigger an answer or copy quoted context into memory.
 
 ## Photos and output
 
