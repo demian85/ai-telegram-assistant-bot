@@ -103,7 +103,17 @@ test.each([
   '``Literal ` ^1^``',
   '```text\nLiteral ^1^\n```',
   '~~~text\nLiteral ^1^\n~~~',
+  '```js\nconst fence = "```";\nconst literal = "^1^";\n```',
+  '~~~js\nconst fence = "~~~";\nconst literal = "^1^";\n~~~',
+  '    Literal ^1^',
+  '\tLiteral ^1^',
+  '> ```text\n> Literal ^1^\n> ```',
   '[Literal ^1^](https://example.com/^1^)',
+  '[existing](https://example.com/a_(b)^1^)',
+  '[Label [nested] ^1^](https://example.com/)',
+  '<https://example.com/^1^>',
+  '[Literal ^1^][source]\n\n[source]: https://example.com/^1^',
+  '![Literal ^1^](https://example.com/a_(b)^1^)',
   '\\^1^',
 ])('preserves citation-like text in Markdown %j', (literal) => {
   expect(
@@ -115,3 +125,34 @@ test.each([
     )
   ).toBe(`${literal}\n\nClaim.[1](<https://example.com/article>)`)
 })
+
+test.each([
+  '```text\nLiteral ^1^\n\nStill code ^1,2^',
+  '~~~text\nLiteral ^1^\n\nStill code ^1,2^',
+  '> ```text\n> Literal ^1^\n>\n> Still code ^1,2^',
+])('preserves literal citations through EOF in unclosed code %j', (content) => {
+  const answer = citedResponse(
+    response(content, [{ url: 'https://example.com/article' }]),
+    { includeSourceList: false }
+  )
+  expect(answer).toBe(content)
+})
+
+test.each([
+  ['**Claim.^1^**', '**Claim.[1](<https://example.com/article>)**'],
+  ['> Claim.^1^', '> Claim.[1](<https://example.com/article>)'],
+  ['- Claim.^1^', '- Claim.[1](<https://example.com/article>)'],
+  [
+    '👩🏽‍💻 Claim.^1^\r\n\r\nNext paragraph.',
+    '👩🏽‍💻 Claim.[1](<https://example.com/article>)\r\n\r\nNext paragraph.',
+  ],
+])(
+  'links prose citations while preserving surrounding Markdown %j',
+  (content, expected) => {
+    const answer = citedResponse(
+      response(content, [{ url: 'https://example.com/article' }]),
+      { includeSourceList: false }
+    )
+    expect(answer).toBe(expected)
+  }
+)

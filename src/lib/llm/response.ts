@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import type { AIMessage } from '@langchain/core/messages'
 import type { CallbackHandlerMethods } from '@langchain/core/callbacks/base'
+import { fromMarkdown } from 'mdast-util-from-markdown'
+import { visitParents } from 'unist-util-visit-parents'
 import logger from '../logger.js'
 import { extractTextContent } from '../agent/content.js'
 
@@ -65,26 +67,38 @@ export function citedResponse(
     )
     sources.push(`[${label}](<${url}>)`)
   }
-  // Protect code, existing links and escapes before recognizing provider markers.
-  const linked = text.replace(
-    /(`+)[\s\S]*?\1|(~{3,})[^\n]*\n[\s\S]*?\n\2|\[[^\]\n]*\]\([^\n]*?\)|\\[\s\S]|\^(\d+(?:[\t ]*,[\t ]*\d+)*)\^/g,
-    (
-      match,
-      _code: string | undefined,
-      _fence: string | undefined,
-      indices: string | undefined
-    ) => {
-      if (!indices) return match
-      const numbers = indices.split(',').map((index) => index.trim())
-      if (numbers.every((index) => !references.has(index))) return match
-      return numbers
-        .map((index) => {
-          const url = references.get(index)
-          return url ? `[${index}](<${url}>)` : `^${index}^`
-        })
-        .join(', ')
-    }
-  )
+  const parts: string[] = []
+  let offset = 0
+  const protectedParents = new Set(['link', 'linkReference'])
+  if (references.size && text.includes('^')) {
+    visitParents(fromMarkdown(text), 'text', (node, parents) => {
+      if (parents.some((parent) => protectedParents.has(parent.type))) return
+      const start = node.position?.start.offset
+      const end = node.position?.end.offset
+      if (start === undefined || end === undefined) return
+      parts.push(
+        text.slice(offset, start),
+        text
+          .slice(start, end)
+          .replace(
+            /\\[\s\S]|\^(\d+(?:[\t ]*,[\t ]*\d+)*)\^/g,
+            (match, indices: string | undefined) => {
+              if (!indices) return match
+              const numbers = indices.split(',').map((index) => index.trim())
+              if (numbers.every((index) => !references.has(index))) return match
+              return numbers
+                .map((index) => {
+                  const url = references.get(index)
+                  return url ? `[${index}](<${url}>)` : `^${index}^`
+                })
+                .join(', ')
+            }
+          )
+      )
+      offset = end
+    })
+  }
+  const linked = parts.join('') + text.slice(offset)
   return options.includeSourceList !== false && sources.length
     ? `${linked}\n\nSources:\n${sources.map((source) => `- ${source}`).join('\n')}`
     : linked
