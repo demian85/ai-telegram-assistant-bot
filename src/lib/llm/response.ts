@@ -26,7 +26,7 @@ const rawSchema = z.object({
 
 export function responseSources(
   message: Pick<AIMessage, 'additional_kwargs'>
-): readonly z.infer<typeof citationSchema>[] {
+): readonly (z.infer<typeof citationSchema> & { readonly number: number })[] {
   const raw = rawSchema.safeParse(message.additional_kwargs?.__raw_response)
   if (!raw.success) return []
   const candidates = [
@@ -35,14 +35,14 @@ export function responseSources(
       (choice) => choice.message.annotations ?? []
     ) ?? []),
   ]
-  return candidates.flatMap((candidate) => {
+  return candidates.flatMap((candidate, index) => {
     const annotation = z
       .object({ url_citation: z.unknown() })
       .safeParse(candidate)
     const parsed = citationSchema.safeParse(
       annotation.success ? annotation.data.url_citation : candidate
     )
-    return parsed.success ? [parsed.data] : []
+    return parsed.success ? [{ ...parsed.data, number: index + 1 }] : []
   })
 }
 
@@ -51,22 +51,43 @@ export function citedResponse(
   options: { readonly includeSourceList?: boolean } = {}
 ): string {
   const text = extractTextContent(message.content)
-  if (options.includeSourceList === false) return text
+  const references = new Map<string, string>()
   const urls = new Set<string>()
   const sources: string[] = []
   for (const source of responseSources(message)) {
     const url = source.url.replace(/[<>]/g, encodeURIComponent)
+    references.set(String(source.number), url)
     if (urls.has(source.url)) continue
     urls.add(source.url)
-    const label = (source.title ?? `Source ${sources.length + 1}`).replace(
+    const label = (source.title ?? `Source ${source.number}`).replace(
       /[[\]\\\r\n]/g,
       ' '
     )
     sources.push(`[${label}](<${url}>)`)
   }
-  return sources.length
-    ? `${text}\n\nSources:\n${sources.map((source) => `- ${source}`).join('\n')}`
-    : text
+  // Protect code, existing links and escapes before recognizing provider markers.
+  const linked = text.replace(
+    /(`+)[\s\S]*?\1|(~{3,})[^\n]*\n[\s\S]*?\n\2|\[[^\]\n]*\]\([^\n]*?\)|\\[\s\S]|\^(\d+(?:[\t ]*,[\t ]*\d+)*)\^/g,
+    (
+      match,
+      _code: string | undefined,
+      _fence: string | undefined,
+      indices: string | undefined
+    ) => {
+      if (!indices) return match
+      const numbers = indices.split(',').map((index) => index.trim())
+      if (numbers.every((index) => !references.has(index))) return match
+      return numbers
+        .map((index) => {
+          const url = references.get(index)
+          return url ? `[${index}](<${url}>)` : `^${index}^`
+        })
+        .join(', ')
+    }
+  )
+  return options.includeSourceList !== false && sources.length
+    ? `${linked}\n\nSources:\n${sources.map((source) => `- ${source}`).join('\n')}`
+    : linked
 }
 
 export const modelTelemetry: CallbackHandlerMethods = {
