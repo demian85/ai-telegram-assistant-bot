@@ -30,6 +30,8 @@ Offline Vitest behavior coverage with injected service doubles and a real agent/
 | Independent decision and generative models                               | `news-decision-config.test.ts`                          |
 | Config validation and required preference role                           | `config-modern.test.ts`                                 |
 
+`agent-photo.test.ts` covers inline image transfer through the real agent/model graph and text-only persistence. `agent-image.test.ts` covers image formats, failed downloads, size limits, and cancellation.
+
 Native search parameters and timeout recovery are covered in `chat-retrieval.test.ts`, `agent-timeout.test.ts`, and `telegram-timeout.test.ts`. The latter uses real Telegraf update handling with a short deadline and injected transports, without starting polling.
 
 `news-cancellation.test.ts` covers feed/decision HTTP cancellation, stopped scans, queued cancellations, retry recovery, and shared scheduler consumers.

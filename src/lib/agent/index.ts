@@ -12,6 +12,7 @@ import type { MemoryConfig } from '../memory/types.js'
 import type { ChatSystemPrompts } from '../config/types.js'
 import { renderPromptTemplate } from '../config/prompt-template.js'
 import type { TelegramChatScopeType } from '../telegram/scope.js'
+import { downloadImageDataUrl } from './image.js'
 import {
   buildLiveUserContent,
   buildPersistedTextShadow,
@@ -125,12 +126,6 @@ export class AgentService {
     try {
       const contextWindow = await this.memoryManager.getContextWindow(chatId)
       const persistedUserContent = buildPersistedTextShadow(input)
-      const liveUserContent = buildLiveUserContent(input, this.supportsVision)
-      const messages = this.buildAgentMessages(
-        contextWindow,
-        liveUserContent,
-        chatType
-      )
 
       await this.memoryManager.addMessage(
         chatId,
@@ -142,9 +137,26 @@ export class AgentService {
         signal
       )
 
+      const liveInput =
+        this.supportsVision && input.imageUrl
+          ? {
+              ...input,
+              imageUrl: await downloadImageDataUrl(input.imageUrl, signal),
+            }
+          : input
+      const liveUserContent = buildLiveUserContent(
+        liveInput,
+        this.supportsVision
+      )
+      const messages = this.buildAgentMessages(
+        contextWindow,
+        liveUserContent,
+        chatType
+      )
+
       logger.debug(
         {
-          messages,
+          messageCount: messages.length,
           toolCount: this.tools.length,
           toolNames: this.tools.map((t) => t.name),
         },
