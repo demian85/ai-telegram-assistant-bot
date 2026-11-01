@@ -17,7 +17,7 @@ Builds live LangChain invocations, durable text history, and tools with trusted 
 - `invokeLive()` reads the context window before adding the current user message. It then persists the user's text shadow, invokes the model, and persists the assistant's extracted text on success.
 - The model receives a system prompt, any daily/weekly/monthly summary context, recent raw messages, and the current user content.
 - `invokeLive(chatId, input, chatType)` and `invoke(chatId, message, chatType)` require the trusted normalized `private`/`group` type. It selects the configured `systemPrompts` entry and renders `{{chatType}}`; no fallback prompt exists. The required `summarizerSystemPrompt` is forwarded to memory generation.
-- With vision enabled, the live content may contain Telegram's image URL. Redis stores `[image attached]` and optional caption text, never the image URL. Without vision, the live user content is that text shadow too.
+- With vision enabled, `image.ts` downloads the current image within the invocation deadline (15-second download timeout, 20 MiB limit), identifies its format from bytes, and supplies an inline data URL to the model. Telegram file URLs contain the bot token and must not reach the model or logs. Redis stores `[image attached]` and optional caption text, never image URLs or bytes; invocation debug logs record message counts rather than payloads. Without vision, the live user content is that text shadow too; passive persistence never downloads images.
 - Optional `replyContext` contains the original author's identity and text/caption. Content builders include it as quoted user context in both live model input and the persisted text shadow, including when the current input has an image.
 - `persistUserMessage()` records group messages that do not invoke the agent. Keep that path distinct from `invokeLive()` so a message is not stored twice.
 
@@ -34,6 +34,6 @@ Builds live LangChain invocations, durable text history, and tools with trusted 
 
 ## Checks
 
-- Run `npm test -- test/agent-content.test.ts test/agent-memory.test.ts` for image and persistence changes.
+- Run `npm test -- test/agent-content.test.ts test/agent-memory.test.ts test/agent-photo.test.ts test/agent-image.test.ts` for image and persistence changes.
 - Run `npm test -- test/agent-news-context.test.ts` for invocation/tool context changes. It exercises real `AgentService` to news tool to `NewsQueryService` wiring with a fake chat model and a retrieval spy: `group:-123` reaches retrieval as raw `-123`, while the model supplies only `count`.
 - Use the injected model/Redis seams in tests; live Telegram and provider calls are not needed for these contracts.
