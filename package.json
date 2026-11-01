@@ -3,15 +3,16 @@
   "version": "2.0.0",
   "description": "Telegram bot with AI assistance and news delivery",
   "type": "module",
-  "main": "build/index.js",
+  "main": "build/src/index.js",
   "exports": {
-    ".": "./build/index.js"
+    ".": "./build/src/index.js"
   },
   "scripts": {
     "news:evaluate": "node --import tsx scripts/evaluate-news-filter.ts",
     "test": "vitest run",
     "build": "tsc && resolve-tspaths",
-    "start": "node build/index.js | pino-pretty",
+    "start": "node build/src/index.js | pino-pretty",
+    "redis:ensure": "tsx scripts/ensure-redis.ts",
     "start:dev": "tsx watch src/index.ts | pino-pretty",
     "tscheck": "tsc --noEmit --pretty",
     "tscheck:watch": "npm run tscheck -- --watch",

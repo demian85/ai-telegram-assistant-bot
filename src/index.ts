@@ -5,6 +5,7 @@ import logger from '@lib/logger.js'
 import { loadAppConfig } from '@lib/config/load-config.js'
 import type { AppConfig } from '@lib/config/types.js'
 import { getRedisClient, closeRedisClient } from '@lib/redis/index.js'
+import { ensureRedis } from '@lib/redis/ensure-redis.js'
 import {
   NewsScheduler,
   NewsStore,
@@ -22,6 +23,7 @@ import { createLlmRoleModels } from '@lib/llm/model.js'
 
 async function main() {
   const config: AppConfig = loadAppConfig()
+  await ensureRedis()
   const redis = getRedisClient()
 
   const models = createLlmRoleModels(config)

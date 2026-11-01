@@ -69,7 +69,7 @@ TypeScript LSP is unavailable (installation previously declined); semantic refer
 
 ## Setup and commands
 
-Copy `env.sample` to `.env` and set `TELEGRAM_BOT_TOKEN`, `REDIS_URL`, and the configured LLM API-key environment variable (default `LLM_API_KEY`). Redis is required; `docker compose up redis` starts the local instance. `config.defaults.json` is required; copy `config.sample.json` to optional `config.json` for overrides. Objects merge by key and arrays replace wholesale, but a nonempty override is validated as a complete config before merging, so arbitrary partial overrides can fail.
+Copy `env.sample` to `.env` and set `TELEGRAM_BOT_TOKEN` and the configured LLM API-key environment variable (default `LLM_API_KEY`). Local startup checks `REDIS_URL` (default `redis://localhost:6379`) and reuses a responding Redis. Refused, unauthenticated local connections start the Compose Redis service with `docker-compose.local.yml`; Docker must be running for that fallback. Remote, TLS, authentication, and protocol failures stop startup. `npm run redis:ensure` prepares Redis without starting the bot. Full `docker compose up --build` uses its own internal Redis without publishing a host port. `config.defaults.json` is required; copy `config.sample.json` to optional `config.json` for overrides. Objects merge by key and arrays replace wholesale, but a nonempty override is validated as a complete config before merging, so arbitrary partial overrides can fail.
 
 ```bash
 npm run start:dev

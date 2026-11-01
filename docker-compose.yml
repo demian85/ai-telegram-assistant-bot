@@ -1,17 +1,13 @@
-version: '3.8'
-
 services:
   redis:
     image: redis:7-alpine
-    container_name: venice-bot-redis
-    ports:
-      - '6379:6379'
     volumes:
       - redis-data:/data
     command: redis-server --appendonly yes
+    restart: unless-stopped
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
-      interval: 10s
+      interval: 2s
       timeout: 3s
       retries: 5
     networks:
@@ -21,13 +17,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: venice-bot-app
     environment:
-      REDIS_URL: ${REDIS_URL?}
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN?}
-      LLM_API_KEY: ${LLM_API_KEY?}
+      REDIS_URL: redis://redis:6379
     env_file:
-      - .env
+      - path: .env
+        required: false
     depends_on:
       redis:
         condition: service_healthy
@@ -36,6 +30,7 @@ services:
     networks:
       - venice-bot
     restart: unless-stopped
+    init: true
 
 volumes:
   redis-data:

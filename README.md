@@ -102,7 +102,7 @@ The override is stored per raw chat ID in Redis without an application expiry an
 
 - Node.js `>=24.0.0`
 - npm
-- Redis
+- Docker with Compose (to start Redis automatically), or an existing Redis server
 - A Telegram bot token from [@BotFather](https://t.me/BotFather)
 - An API key for your chosen OpenAI-compatible provider
 
@@ -116,7 +116,7 @@ Copy `env.sample` to `.env`:
 cp env.sample .env
 ```
 
-Required values:
+Required credentials and optional Redis/logging settings:
 
 ```env
 TELEGRAM_BOT_TOKEN=
@@ -207,16 +207,20 @@ Install dependencies:
 npm install
 ```
 
-Start Redis only:
-
-```bash
-docker compose up redis
-```
-
 Run the bot in development mode:
 
 ```bash
 npm run start:dev
+```
+
+Startup first checks `REDIS_URL` (default `redis://localhost:6379`) with Redis `PING`. A responding instance is reused, including a Redis server running outside this project. If an unauthenticated `redis://localhost:<port>` or `redis://127.0.0.1:<port>` connection is refused, the app starts the Compose Redis service, publishes it on loopback at that port, waits for health, and verifies the connection before starting the bot. Docker must be running for this fallback.
+
+Remote, TLS, authentication, and protocol errors stop startup instead of silently replacing the configured Redis server. Explicit credentials are never replaced with an unauthenticated container. The Redis container stays running when the bot exits, preserving memory and subscriptions in its named volume.
+
+To prepare Redis without starting Telegram polling:
+
+```bash
+npm run redis:ensure
 ```
 
 Build and run the production build locally:
@@ -246,10 +250,20 @@ Stop containers:
 docker compose down
 ```
 
-The compose setup starts:
+The Compose setup starts:
 
 - `redis` - Redis 7 with append-only persistence
-- `bot` - the Node 24 application container
+- `bot` - the Node 24 application container, after Redis becomes healthy
+
+The bot container always connects to `redis://redis:6379` on the Compose network. The host's `REDIS_URL` from `.env` applies to local npm runs. The full stack does not publish a Redis host port, so an existing local Redis can keep running without a port conflict. Local npm runs reuse that existing instance; the full stack uses its own Redis service. Avoid running both bot modes with the same Telegram token.
+
+To publish only the project's Redis for host access manually:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --wait redis
+```
+
+Set `REDIS_PORT` for that manual command to use a different host port; automatic startup derives it from `REDIS_URL`. The optional `.env` supplies the bot credentials (including custom provider API-key variable names). Redis-only startup does not require bot credentials. The Docker build excludes `.env` files; credentials are supplied at runtime. `docker compose down` stops the project's containers and retains Redis data; add `--volumes` only when you intend to erase that data.
 
 ## Development commands
 
