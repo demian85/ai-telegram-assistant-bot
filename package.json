@@ -66,5 +66,10 @@
     "telegraf": "^4.14.0",
     "unist-util-visit-parents": "^6.1.0",
     "zod": "^4.6.5"
+  },
+  "allowScripts": {
+    "esbuild@0.27.7": true,
+    "fsevents@2.3.3": true,
+    "msgpackr-extract@3.0.3": true
   }
 }
