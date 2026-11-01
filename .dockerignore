@@ -2,3 +2,7 @@
 .gitignore
 node_modules/
 build/
+.env
+.env.*
+logs/
+artifacts/
