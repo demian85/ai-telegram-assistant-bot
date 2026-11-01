@@ -25,7 +25,20 @@ export class FeedReader {
       // HN rejects the extractor's Firefox identity; Lynx works for RSS requests.
       const feed = await extract(
         url,
-        {},
+        {
+          xmlParserOptions: {
+            processEntities: {
+              // Escaped HTML in large feeds exceeds the 1,000-expansion default.
+              // Object options have looser defaults, so retain the other limits explicitly.
+              enabled: true,
+              maxTotalExpansions: 100_000,
+              maxEntitySize: 10_000,
+              maxExpansionDepth: 10,
+              maxExpandedLength: 100_000,
+              maxEntityCount: 100,
+            },
+          },
+        },
         { signal, headers: { 'user-agent': 'Lynx/2.9.2' } }
       )
       signal?.throwIfAborted()
