@@ -1,8 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto'
+import type { BaseMessageLike } from '@langchain/core/messages'
 import type { ChatOpenAI } from '@langchain/openai'
 import type { Redis } from 'ioredis'
 import { z } from 'zod'
 import type { LlmRoleConfig } from '@lib/config/types.js'
+import logger from '@lib/logger.js'
 import {
   preferenceDescriptionSchema,
   generatedCriteriaSchema,
@@ -38,29 +40,56 @@ export class NewsPreferenceGenerator {
 
   async generate(description: string): Promise<NewsPreference> {
     const input = preferenceDescriptionSchema.parse(description)
-    const output = await this.model
-      .withStructuredOutput(generatedCriteriaSchema)
-      .invoke(
-        [
-          {
-            role: 'system',
-            content: [this.config.systemPrompt, generationRules].join('\n\n'),
-          },
-          { role: 'user', content: input },
-        ],
-        { signal: AbortSignal.timeout(60_000) }
+    const model = this.model.withStructuredOutput(generatedCriteriaSchema)
+    const signal = AbortSignal.timeout(60_000)
+    const revision = randomUUID()
+    const messages: BaseMessageLike[] = [
+      {
+        role: 'system',
+        content: [this.config.systemPrompt, generationRules].join('\n\n'),
+      },
+      { role: 'user', content: input },
+    ]
+    const compile = async () => {
+      const criteria = generatedCriteriaSchema.parse(
+        await model.invoke(messages, { signal })
       )
-    const criteria = generatedCriteriaSchema.parse(output)
-    return newsPreferenceSchema.parse({
-      mode: 'custom',
-      version: 2,
-      description: input,
-      criteria,
-      instruction: renderCriteria(criteria),
-      revision: randomUUID(),
-      generatedAt: new Date().toISOString(),
-      model: this.config.model,
-    })
+      return {
+        criteria,
+        preference: newsPreferenceSchema.safeParse({
+          mode: 'custom',
+          version: 2,
+          description: input,
+          criteria,
+          instruction: renderCriteria(criteria),
+          revision,
+          generatedAt: new Date().toISOString(),
+          model: this.config.model,
+        }),
+      }
+    }
+    let result = await compile()
+    if (!result.preference.success) {
+      logger.info(
+        {
+          event: 'news.preferences.repair',
+          revision,
+          model: this.config.model,
+          issues: result.preference.error.issues,
+        },
+        'Retrying news preference compilation after validation failure'
+      )
+      messages.push(
+        { role: 'assistant', content: JSON.stringify(result.criteria) },
+        {
+          role: 'user',
+          content: `Correct the previous criteria and return the complete structured object. Copy sourceText as complete, exact sentences from my original description, including all punctuation. Cover the entire description, including introductory wording, selection conditions, exclusions, and title requirements. Group related interests if necessary. Do not change my original description or invent preferences. Validation errors: ${JSON.stringify(result.preference.error.issues)}`,
+        }
+      )
+      result = await compile()
+    }
+    if (!result.preference.success) throw result.preference.error
+    return result.preference.data
   }
 }
 
