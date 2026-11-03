@@ -85,7 +85,9 @@ test.each([
       expect(items[0].description).toContain('Kubernetes & cloud updates')
       expect(items[0].description).not.toMatch(/&(?:lt|gt|amp);|<\/?p>/)
       expect(requests[0].headers['user-agent']).toBe('Lynx/2.9.2')
-      expect(reader.isSeen('https://example.com/article')).toBe(true)
+      expect(reader.isSeen('https://example.com/article')).toBe(false)
+      await expect(reader.fetchFeed(url)).resolves.toHaveLength(1)
+      reader.markSeen('https://example.com/article')
       await expect(reader.fetchFeed(url)).resolves.toEqual([])
     })
   }

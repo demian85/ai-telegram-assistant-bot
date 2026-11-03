@@ -66,9 +66,13 @@ export class NewsQueryService {
           this.config.feeds,
           signal
         )
-        for (const item of items.slice(0, 20)) {
+        let storedCount = 0
+        for (const item of items) {
           signal?.throwIfAborted()
-          await this.newsStore.storeItem(item)
+          if (storedCount >= 20) break
+          const stored = await this.newsStore.storeItem(item)
+          this.feedReader.markSeen(item.url)
+          if (stored) storedCount++
         }
       } catch (error) {
         signal?.throwIfAborted()

@@ -280,12 +280,13 @@ export class NewsScheduler {
       `Fetched ${items.length} articles from feeds`
     )
 
-    const limited = items.slice(0, this.config.maxArticlesPerPoll)
     let storedCount = 0
     let skippedCount = 0
 
-    for (const item of limited) {
+    for (const item of items) {
+      if (storedCount >= this.config.maxArticlesPerPoll) break
       const wasStored = await this.newsStore.storeItem(item)
+      this.feedReader.markSeen(item.url)
       if (!wasStored) {
         skippedCount++
         continue

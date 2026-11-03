@@ -25,7 +25,7 @@ Per-chat preferences and shared decisions filter feed queries and scheduled deli
 
 - The `news-polling` queue handles `poll-news` and `deliver-news`; startup registers immediate and repeating jobs.
 - Startup removes only `poll-news` and `deliver-news` repeatable registrations by BullMQ key, preserving unrelated jobs. Listing or removal failure prevents all immediate and repeating jobs from being enqueued.
-- Polling fetches feeds, caps results with `maxArticlesPerPoll`, and stores new articles without scoring them.
+- Polling fetches feeds and stores at most `maxArticlesPerPoll` new articles without scoring them. Already persisted items do not consume this cap. Readers mark URLs seen only after successful storage or confirmation that an item already exists, retaining overflow and failed writes for later polls. On-demand queries follow the same contract with a 20-new-article cap.
 - `NewsSchedulerConfig.allowedGroupIds` is optional and defaults to `[]`; bootstrap supplies `telegram.allowedGroupIds`. Delivery excludes negative subscription chat IDs absent from this allowlist before preference resolution, article retrieval, or scoring. Positive private IDs are unaffected, and denied subscriptions retain their stored state.
 - Delivery loads allowed enabled subscriptions, checks cadence, then evaluates eligible articles against each chat's resolved instruction.
 - Delivery considers articles fetched since `deliverAfter`, oldest first, skipping articles already delivered to that chat.

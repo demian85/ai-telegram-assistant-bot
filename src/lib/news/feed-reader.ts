@@ -69,7 +69,6 @@ export class FeedReader {
         }
 
         items.push(item)
-        this.seenUrls.add(link)
       }
 
       const duration = Date.now() - startTime
