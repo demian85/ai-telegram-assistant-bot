@@ -12,7 +12,7 @@ test.each([
   { description: 'C#', rule: 'C## coverage' },
   { description: 'Node', rule: 'Node.js coverage' },
 ])(
-  'retains a source quote when the paraphrase embeds it in a different keyword: $description',
+  'shows the original keyword when the paraphrase embeds it in a different keyword: $description',
   async ({ description, rule }) => {
     const generator = new NewsPreferenceGenerator(
       structuredModel(() => ({
@@ -25,7 +25,9 @@ test.each([
 
     const generated = await generator.generate(description)
 
-    expect(generated.instruction).toContain(`"${description}"`)
+    expect(generated.instruction).toBe(
+      `Include substantive coverage of any: ${description}`
+    )
   }
 )
 

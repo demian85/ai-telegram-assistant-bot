@@ -73,17 +73,15 @@ export function renderCriteria(criteria: NewsCriteria): string {
     [
       ...new Set(
         rules.map((item) => {
-          const rule = (
-            prefix ? item.rule.replace(prefix, '') : item.rule
-          ).trim()
-          return ` ${rule} `.includes(` ${item.sourceText} `)
-            ? rule
-            : `${rule} (source: "${item.sourceText}")`
+          const text = ` ${item.rule} `.includes(` ${item.sourceText} `)
+            ? item.rule
+            : item.sourceText
+          return (prefix ? text.replace(prefix, '') : text).trim()
         })
       ),
     ].join('; ')
   return [
-    `Include substantive coverage of any: ${compact(criteria.interests, /^Select articles substantively covering\s+/i)}`,
+    `Include substantive coverage of any: ${compact(criteria.interests, /^Select articles substantively covering\s+(?:at least one of these interests:\s*)?/i)}`,
     ...(criteria.exclusions.length
       ? [`Exclude: ${compact(criteria.exclusions, /^Exclude\s+/i)}`]
       : []),

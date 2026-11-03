@@ -75,6 +75,7 @@ test('keeps all exact keywords visible even when a generated rule paraphrases it
   expect(generated.description).toBe(description)
   expect(generated.instruction).toContain(exclusions)
   expect(generated.instruction).toContain(titles)
+  expect(generated.instruction).not.toContain('(source:')
 
   const harness = filterHarness((request) => {
     expect(request.state.preferences).toBe(description)

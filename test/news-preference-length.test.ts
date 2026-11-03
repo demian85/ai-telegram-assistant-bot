@@ -57,8 +57,8 @@ test.each([
         rule: `Codex requirement ${index}`,
         sourceText: input,
       })),
-      exclusions: [],
-      titleRules: [],
+      exclusions: [{ rule: 'Codex exclusion', sourceText: input }],
+      titleRules: [{ rule: 'Codex title requirement', sourceText: input }],
     }
     const generated = {
       mode: 'custom',
