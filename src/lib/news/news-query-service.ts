@@ -5,6 +5,7 @@ import { NewsStore } from './news-store.js'
 import type { ChatNewsFilter } from './chat-news-filter.js'
 import logger from '@lib/logger.js'
 import { NewsEvaluationBudget } from './evaluation-budget.js'
+import { prioritizeOriginalSources } from './delivery-selection.js'
 
 export type RecentNewsItem = Omit<NewsItem, 'feedUrl'>
 
@@ -104,9 +105,9 @@ export class NewsQueryService {
     }
     const selected: RecentNewsItem[] = []
     const limit = Math.max(1, Math.min(10, request.limit))
-    for (const item of items) {
+    for (const item of prioritizeOriginalSources(items)) {
       signal?.throwIfAborted()
-      const result = await filter.evaluate(context, item)
+      const result = await filter.evaluateDistinct(context, item, selected)
       signal?.throwIfAborted()
       if (result?.isRelevant) {
         selected.push({ ...item, relevanceScore: Math.round(result.score) })

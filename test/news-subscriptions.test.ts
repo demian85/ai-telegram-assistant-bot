@@ -1,4 +1,4 @@
-import { test, expect } from 'vitest'
+import { test, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   ChatSubscriptionStore,
   NewsDeliveryStore,
@@ -15,6 +15,13 @@ import {
   createNoopQueue,
   createNoopWorker,
 } from './test-helpers.js'
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-04-11T12:00:00.000Z'))
+})
+
+afterEach(() => vi.useRealTimers())
 
 function createMockRelevanceDetector() {
   return {

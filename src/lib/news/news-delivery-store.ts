@@ -1,5 +1,6 @@
 import type { Redis } from 'ioredis'
-import type { NewsDeliveryRecord } from './types.js'
+import type { NewsDeliveryRecord, NewsItem } from './types.js'
+import { NewsStore } from './news-store.js'
 
 export class NewsDeliveryStore {
   private readonly keyPrefix = 'news:chat-delivery:'
@@ -52,6 +53,22 @@ export class NewsDeliveryStore {
 
   async getDeliveredItemIds(chatId: string): Promise<string[]> {
     return this.redis.zrange(this.getIndexKey(chatId), 0, -1)
+  }
+
+  async getRecentArticles(chatId: string, since: Date): Promise<NewsItem[]> {
+    const ids = await this.redis.zrangebyscore(
+      this.getIndexKey(chatId),
+      since.getTime(),
+      '+inf'
+    )
+    const store = new NewsStore(this.redis)
+    const articles = await Promise.all(
+      ids.slice(-100).map(async (id) => {
+        if (!(await this.hasDelivered(chatId, id))) return null
+        return store.getItem(id)
+      })
+    )
+    return articles.filter((article) => article !== null)
   }
 
   private parseDelivery(data: string): NewsDeliveryRecord {
