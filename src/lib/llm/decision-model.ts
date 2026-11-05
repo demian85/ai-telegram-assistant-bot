@@ -59,6 +59,11 @@ export type DecisionState = {
     readonly title: string
     readonly description?: string
   }
+  readonly previousArticles?: readonly {
+    readonly title: string
+    readonly description?: string
+    readonly url: string
+  }[]
 }
 
 export class VeniceDecisionModel {

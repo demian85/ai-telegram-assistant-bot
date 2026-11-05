@@ -71,6 +71,17 @@ export const decisionRequestSchema = z.object({
           description: z.string().optional(),
         })
         .strict(),
+      previousArticles: z
+        .array(
+          z
+            .object({
+              title: z.string(),
+              description: z.string().optional(),
+              url: z.string(),
+            })
+            .strict()
+        )
+        .optional(),
     })
     .strict(),
   questions: z.record(

@@ -6,7 +6,7 @@ import {
   type VeniceDecisionModel,
 } from '@lib/llm/decision-model.js'
 import logger from '@lib/logger.js'
-import type { NewsConfig, NewsItem } from './types.js'
+import type { NewsConfig, NewsItem, NewsStory } from './types.js'
 import type { NewsFilter } from './preferences.js'
 import { relevanceQuestions } from './relevance-questions.js'
 
@@ -59,7 +59,9 @@ export class RelevanceDetector {
 
   async detectRelevance(
     item: NewsItem,
-    filter: Pick<NewsFilter, 'description' | 'relevanceThreshold'>,
+    filter: Pick<NewsFilter, 'description' | 'relevanceThreshold'> & {
+      readonly previousArticles?: readonly NewsStory[]
+    },
     signal?: AbortSignal
   ): Promise<RelevanceResult | null> {
     signal?.throwIfAborted()
@@ -71,6 +73,15 @@ export class RelevanceDetector {
             title: item.title.slice(0, 1000),
             description: item.description?.slice(0, 3000),
           },
+          ...(filter.previousArticles?.length
+            ? {
+                previousArticles: filter.previousArticles.map((previous) => ({
+                  title: previous.title.slice(0, 1000),
+                  description: previous.description?.slice(0, 500),
+                  url: previous.url,
+                })),
+              }
+            : {}),
         },
         relevanceQuestions,
         signal

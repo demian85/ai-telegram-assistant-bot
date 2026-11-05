@@ -13,6 +13,10 @@ import { ChatNewsFilter } from './chat-news-filter.js'
 import { NewsEvaluationBudget } from './evaluation-budget.js'
 import { NewsPreferenceStore } from './preferences.js'
 import {
+  deliveryMaxAgeMs,
+  selectDeliveryCandidates,
+} from './delivery-selection.js'
+import {
   clearNewsRepeatableJobs,
   type RepeatableQueue,
 } from './repeatable-jobs.js'
@@ -394,8 +398,13 @@ export class NewsScheduler {
 
       const filter = await this.filter.preferences.resolve(subscription.chatId)
 
-      const candidateItems = await this.newsStore.getItemsSince(
-        subscription.deliverAfter
+      const candidateItems = selectDeliveryCandidates(
+        await this.newsStore.getItemsSince(subscription.deliverAfter),
+        now
+      )
+      const previousArticles = await this.newsDeliveryStore.getRecentArticles(
+        subscription.chatId,
+        new Date(now.getTime() - deliveryMaxAgeMs)
       )
 
       logger.debug(
@@ -420,9 +429,10 @@ export class NewsScheduler {
         }
 
         const hadBudget = !budget.exhausted
-        const result = await this.filter.evaluate(
+        const result = await this.filter.evaluateDistinct(
           { chatId: subscription.chatId, filter, budget },
-          item
+          item,
+          previousArticles
         )
         if (hadBudget && budget.exhausted) {
           this.lastBudgetChatId = subscription.chatId

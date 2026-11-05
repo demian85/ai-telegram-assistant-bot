@@ -11,7 +11,7 @@ import {
   type RelevanceDetector,
   type RelevanceResult,
 } from './relevance-detector.js'
-import type { NewsItem } from './types.js'
+import type { NewsItem, NewsStory } from './types.js'
 
 const decisionTtlSeconds = 14 * 24 * 60 * 60
 const retryDelaysMs = [15 * 60 * 1000, 60 * 60 * 1000] as const
@@ -27,6 +27,7 @@ type EvaluationContext = {
   readonly filter: NewsFilter
   readonly budget?: NewsEvaluationBudget
   readonly signal?: AbortSignal
+  readonly previousArticles?: readonly NewsStory[]
 }
 
 type PendingEvaluation = {
@@ -45,6 +46,16 @@ export class ChatNewsFilter {
     private readonly detector: RelevanceDetector
   ) {}
 
+  async evaluateDistinct(
+    context: EvaluationContext,
+    item: NewsItem,
+    previousArticles: readonly NewsStory[]
+  ): Promise<RelevanceResult | null> {
+    const result = await this.evaluate(context, item)
+    if (!result?.isRelevant || previousArticles.length === 0) return result
+    return this.evaluate({ ...context, previousArticles }, item)
+  }
+
   async evaluate(
     context: EvaluationContext,
     item: NewsItem
@@ -58,6 +69,11 @@ export class ChatNewsFilter {
           this.detector.cacheVersion,
           item.title.slice(0, 1000),
           item.description?.slice(0, 3000),
+          context.previousArticles?.map((previous) => [
+            previous.title.slice(0, 1000),
+            previous.description?.slice(0, 500),
+            previous.url,
+          ]),
         ])
       )
       .digest('hex')
@@ -186,7 +202,7 @@ export class ChatNewsFilter {
     try {
       result = await this.detector.detectRelevance(
         item,
-        context.filter,
+        { ...context.filter, previousArticles: context.previousArticles },
         context.signal
       )
       context.signal?.throwIfAborted()

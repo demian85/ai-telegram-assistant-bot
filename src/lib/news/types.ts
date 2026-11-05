@@ -15,6 +15,10 @@ export interface NewsItem {
   legacyBroadcastedAt?: Date
 }
 
+export type NewsStory = Readonly<
+  Pick<NewsItem, 'title' | 'description' | 'url'>
+>
+
 export interface NewsChatSubscription {
   chatId: string
   enabled: boolean

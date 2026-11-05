@@ -19,6 +19,7 @@ Per-chat preferences and shared decisions filter feed queries and scheduled deli
 | `evaluation-budget.ts`       | Fresh provider evaluation budgets                                         |
 | `chat-subscription-store.ts` | Enabled state, cadence, delivery timestamps                               |
 | `news-delivery-store.ts`     | Per-chat article delivery records and rollback                            |
+| `delivery-selection.ts`      | Publication-age gate and original-source priority                         |
 | `types.ts`, `index.ts`       | Shared contracts, cadence bounds, public exports                          |
 
 ## Scheduled flow
@@ -28,7 +29,8 @@ Per-chat preferences and shared decisions filter feed queries and scheduled deli
 - Polling fetches feeds, caps results with `maxArticlesPerPoll`, and stores new articles without scoring them.
 - `NewsSchedulerConfig.allowedGroupIds` is optional and defaults to `[]`; bootstrap supplies `telegram.allowedGroupIds`. Delivery excludes negative subscription chat IDs absent from this allowlist before preference resolution, article retrieval, or scoring. Positive private IDs are unaffected, and denied subscriptions retain their stored state.
 - Delivery loads allowed enabled subscriptions, checks cadence, then evaluates eligible articles against each chat's resolved instruction.
-- Delivery considers articles fetched since `deliverAfter`, oldest first, skipping articles already delivered to that chat.
+- Delivery considers articles fetched since `deliverAfter`, skipping articles already delivered to that chat and publications outside the inclusive last-48-hour window (invalid/future dates are withheld). Known original-source domains take priority; fetch order is preserved within each source tier. Manual queries retain their existing time windows and use the same source priority.
+- After relevance passes, `ChatNewsFilter.evaluateDistinct` checks for repeated events against up to 100 latest deliveries in the last 48 hours. Delivery history is per chat and survives restart; failed sends remove their records. Queries compare against articles already selected for that response. Distinct developments about the same company/topic remain eligible. The second request shares the existing budget, retry/cooldown, cancellation and stale-preference checks; cached relevance alone cannot bypass it.
 - Send at most one relevant article per chat per cycle. Eligibility is the later of `deliverAfter` and `lastSentAt + interval`.
 - Each delivery cycle spends at most 10 fresh provider evaluations across all chats. Cached decisions and retry/cooldown/budget skips do not spend this budget; later cycles progress through cached rejections.
 - Rotate after cycles that spend the entire evaluation budget, remembering the consuming chat ID and starting at the next enabled ID in sorted order. Redis result reordering and subscription additions/removals must not shift the cursor back to the same chat. Ordinary delivery order remains stable while budget remains.
@@ -56,7 +58,7 @@ Per-chat preferences and shared decisions filter feed queries and scheduled deli
 - Article values expire after 7 days; the `news:items` index is scored by `fetchedAt`, not publication time. Storage and indexed reads prune missing references in batches of 250; removal checks article existence atomically to preserve concurrent re-storage and retained old articles.
 - Preferences use `news:preferences:<chatId>` with no application expiry, independently of subscription records. Custom records retain description, criteria, instruction, revision, model, and generation time.
 - Coverage overrides use `news:relevance-threshold:<chatId>` with no application expiry; `/relevance reset` deletes the override. Values are finite numbers from 0 to 100. Resolved revisions protect stale-result checks and decision/retry cache identity when overrides change.
-- Complete decisions expire after 14 days. Keys include chat/article identity plus a hash of preference revision/original description, model/provider, decision version, question/rubric definitions, confidence/coverage thresholds, and evaluated title/description.
+- Complete decisions expire after 14 days. Keys include chat/article identity plus a hash of preference revision/original description, model/provider, decision version, question/rubric definitions, confidence/coverage thresholds, and evaluated title/description. Duplicate-check keys additionally include comparison titles/descriptions/URLs; changing delivery history does not invalidate the separate base relevance cache. Comparison titles/descriptions are bounded to 1000/500 characters and treated as untrusted article data.
 - Unresolved evaluations remain withheld and are not cached as decisions. Separate retry metadata persists for 14 days: at most three evaluations per fingerprint, with 15-minute and one-hour cooldowns. Preference, model/config, and article-content changes receive independent budgets. Concurrent evaluations of the same fingerprint share one promise in the shared filter instance.
 - HTTP 429 pauses fresh decisions across delivery and query paths, chats and filter instances through a Redis cooldown keyed by provider base URL. Honor `retry-after-ms` or `Retry-After` (seconds or HTTP date), with a 60-second fallback and a one-second minimum. Rate limiting and skipped evaluations do not spend per-article retry attempts. The shared filter serializes fresh decisions so queued calls observe cooldown; cached decisions remain available.
 - The decision transport defaults to one HTTP attempt per evaluation. Explicit evaluation-script/test overrides may opt into SDK retries. Manual queries retain the existing 50-candidate/request limit.
@@ -66,17 +68,18 @@ Per-chat preferences and shared decisions filter feed queries and scheduled deli
 
 ## Verification
 
-| Behavior                                                                 | Test file                             |
-| ------------------------------------------------------------------------ | ------------------------------------- |
-| Shared delivery/query/summary/tool preferences and stale results         | `test/news-filter-paths.test.ts`      |
-| Decision HTTP contract, eligibility confidence and raw coverage          | `test/news-decisions.test.ts`         |
-| Generator corruption, source grounding and legacy migration              | `test/news-filter-regression.test.ts` |
-| Persistent retry budgets, cooldowns and concurrent evaluations           | `test/news-filter-retries.test.ts`    |
-| Delivery evaluation budget and query cache reuse                         | `test/news-request-limits.test.ts`    |
-| Expired index pruning, batching and concurrent re-storage                | `test/news-store.test.ts`             |
-| Repeat schedule replacement, unrelated jobs and cleanup failure          | `test/news-scheduler.test.ts`         |
-| Group allowlist defaults and denied subscriptions skipped before scoring | `test/news-scheduler.test.ts`         |
-| Defaults, cadence, isolation, ordering, cooldowns and rollback           | `test/news-subscriptions.test.ts`     |
-| Group subscription and preference authorization                          | `test/telegram-routing.test.ts`       |
+| Behavior                                                                 | Test file                              |
+| ------------------------------------------------------------------------ | -------------------------------------- |
+| Shared delivery/query/summary/tool preferences and stale results         | `test/news-filter-paths.test.ts`       |
+| Publication age, source priority, event deduplication and send rollback  | `test/news-delivery-selection.test.ts` |
+| Decision HTTP contract, eligibility confidence and raw coverage          | `test/news-decisions.test.ts`          |
+| Generator corruption, source grounding and legacy migration              | `test/news-filter-regression.test.ts`  |
+| Persistent retry budgets, cooldowns and concurrent evaluations           | `test/news-filter-retries.test.ts`     |
+| Delivery evaluation budget and query cache reuse                         | `test/news-request-limits.test.ts`     |
+| Expired index pruning, batching and concurrent re-storage                | `test/news-store.test.ts`              |
+| Repeat schedule replacement, unrelated jobs and cleanup failure          | `test/news-scheduler.test.ts`          |
+| Group allowlist defaults and denied subscriptions skipped before scoring | `test/news-scheduler.test.ts`          |
+| Defaults, cadence, isolation, ordering, cooldowns and rollback           | `test/news-subscriptions.test.ts`      |
+| Group subscription and preference authorization                          | `test/telegram-routing.test.ts`        |
 
 Use injected Redis, feed/scoring, queue and worker doubles from `test/test-helpers.ts`; these do not prove live scheduling or transport.
