@@ -290,6 +290,22 @@ Conversation state is stored in Redis.
 
 This keeps the bot context-aware without letting conversation history grow unbounded.
 
+## Back up and restore chats
+
+The running bot saves `backups/chats-YYYY-MM-DD.resp` at midnight UTC. On startup it creates today's backup if missing. A failed run retries after five minutes. Each daily file is retained until you delete it. Compose mounts the host's `./backups` directory. For local npm runs, set `CHAT_BACKUP_DIR` to choose a different directory.
+
+Run `npm run chat:backup` to save an additional timestamped backup from the configured `REDIS_URL`. For the Compose stack, run `docker compose exec bot node build/scripts/backup-chats.js`. Both commands use Redis directly and can run alongside the bot.
+
+Open a backup in a text editor or search it with `rg --text`. Each original message and summary is visible as UTF-8 text. The surrounding lines are Redis commands and byte lengths. Backups include full conversation lists, all summary levels, saved news filters and relevance thresholds, and subscription settings and their index for every stored chat. News articles, delivery caches and queue jobs are outside the backup. Files contain private chat text and are created with owner-only permissions.
+
+To restore, choose a **fresh Redis database** and stop writers to that database. Replay a trusted backup with the Redis CLI, substituting your destination URL and filename:
+
+```sh
+redis-cli -u "$RESTORE_REDIS_URL" --pipe < backups/chats-YYYY-MM-DD.resp
+```
+
+For an empty Compose Redis with the bot stopped, use `docker compose exec -T redis redis-cli --pipe < backups/chats-YYYY-MM-DD.resp`. Check that the CLI reports zero errors before starting the bot against the restored database. Replaying the file replaces its saved keys and preserves list order and summary scores. Keys absent from the file remain untouched. Each Redis key is read atomically during export, so writes during a backup can appear at different points across keys. Files are published only after the full export succeeds.
+
 ## How news works
 
 The bot continuously monitors configured RSS feeds and stores recent articles in Redis.

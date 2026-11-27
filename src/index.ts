@@ -6,6 +6,7 @@ import { loadAppConfig } from '@lib/config/load-config.js'
 import type { AppConfig } from '@lib/config/types.js'
 import { getRedisClient, closeRedisClient } from '@lib/redis/index.js'
 import { ensureRedis } from '@lib/redis/ensure-redis.js'
+import { startDailyChatBackups } from '@lib/redis/daily-chat-backup.js'
 import {
   NewsScheduler,
   NewsStore,
@@ -25,6 +26,7 @@ async function main() {
   const config: AppConfig = loadAppConfig()
   await ensureRedis()
   const redis = getRedisClient()
+  startDailyChatBackups(redis)
 
   const models = createLlmRoleModels(config)
   await validateChatCapabilities(config)

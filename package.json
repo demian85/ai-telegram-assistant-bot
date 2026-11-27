@@ -8,6 +8,7 @@
     ".": "./build/src/index.js"
   },
   "scripts": {
+    "chat:backup": "node --import tsx scripts/backup-chats.ts",
     "news:evaluate": "node --import tsx scripts/evaluate-news-filter.ts",
     "test": "vitest run",
     "build": "tsc && resolve-tspaths",
