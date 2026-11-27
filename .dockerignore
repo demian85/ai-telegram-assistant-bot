@@ -5,4 +5,7 @@ build/
 .env
 .env.*
 logs/
+backups/
+**/chats-*.resp
+**/.chat-backup-*.tmp
 artifacts/

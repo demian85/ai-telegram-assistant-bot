@@ -19,6 +19,7 @@ services:
       dockerfile: Dockerfile
     environment:
       REDIS_URL: redis://redis:6379
+      CHAT_BACKUP_DIR: /app/backups
     env_file:
       - path: .env
         required: false
@@ -27,6 +28,7 @@ services:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
+      - ./backups:/app/backups
     networks:
       - venice-bot
     restart: unless-stopped
